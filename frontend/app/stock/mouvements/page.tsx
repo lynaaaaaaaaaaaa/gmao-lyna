@@ -143,8 +143,8 @@ export default function MouvementsStockPage() {
   ];
 
   return (
-    <div className="h-[calc(100vh-122px)] w-full min-w-0 overflow-hidden bg-slate-50 px-5 py-5 lg:px-7">
-      <div className="flex h-full min-w-0 flex-col gap-4">
+  <div className="w-full min-w-0 bg-slate-50 px-5 py-5 lg:px-7">
+    <div className="flex min-w-0 flex-col gap-5">
         <section className="shrink-0 rounded-[24px] border border-slate-200 bg-white px-5 py-4 shadow-sm">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">
@@ -254,12 +254,12 @@ export default function MouvementsStockPage() {
           </div>
         </section>
 
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <MouvementStockTable
-            mouvements={filteredMouvements}
-            loading={loading}
-          />
-        </div>
+       <div className="min-w-0">
+  <MouvementStockTable
+    mouvements={filteredMouvements}
+    loading={loading}
+  />
+</div>
       </div>
     </div>
   );

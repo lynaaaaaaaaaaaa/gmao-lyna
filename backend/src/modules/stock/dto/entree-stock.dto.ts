@@ -1,18 +1,17 @@
 import {
-  ArrayMinSize,
   IsArray,
   IsDateString,
   IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
+  IsPositive,
   IsString,
-  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class MaterielReceptionDto {
+export class MaterielEntreeStockDto {
   @IsString()
   @IsNotEmpty()
   code!: string;
@@ -22,29 +21,32 @@ class MaterielReceptionDto {
   numeroSerie?: string;
 }
 
-class LigneEntreeStockDto {
-  @Type(() => Number)
+export class LigneEntreeStockDto {
   @IsInt()
+  @IsPositive()
+  @Type(() => Number)
   idArticle!: number;
 
-  @Type(() => Number)
   @IsInt()
+  @IsPositive()
+  @Type(() => Number)
   idMagasin!: number;
 
   @IsOptional()
-  @Type(() => Number)
   @IsInt()
+  @IsPositive()
+  @Type(() => Number)
   idEmplacement?: number;
 
+  @IsNumber()
+  @IsPositive()
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0.01)
   quantite!: number;
 
   @IsOptional()
+  @IsNumber()
+  @IsPositive()
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
   prixUnitaire?: number;
 
   @IsOptional()
@@ -62,15 +64,15 @@ class LigneEntreeStockDto {
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => MaterielReceptionDto)
-  materiels?: MaterielReceptionDto[];
+  @Type(() => MaterielEntreeStockDto)
+  materiels?: MaterielEntreeStockDto[];
 }
 
 export class EntreeStockDto {
-  @IsOptional()
+    @IsOptional()
   @IsString()
   numero?: string;
-
+  
   @IsDateString()
   dateReception!: string;
 
@@ -79,7 +81,6 @@ export class EntreeStockDto {
   commentaire?: string;
 
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => LigneEntreeStockDto)
   lignes!: LigneEntreeStockDto[];

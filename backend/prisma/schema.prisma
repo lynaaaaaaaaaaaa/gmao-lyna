@@ -44,13 +44,17 @@ model article {
   uniteArticle unite_article? @relation(fields: [idUniteArticle], references: [idUniteArticle], onDelete: SetNull, onUpdate: Restrict)
   modele       modele?        @relation(fields: [idModele], references: [idModele], onDelete: SetNull, onUpdate: Restrict)
 
-  consommations   consommation[]
+   consommations   consommation[]
   materiels       materiel[]
   etatMateriels   etat_materiel[]
   stocks          stock_article_magasin[]
   mouvementsStock mouvement_stock[]
   lignesEntreeStock entree_stock_ligne[]
   lignesSortieStock sortie_stock_ligne[]
+  lignesInventairePrepare LigneInventairePrepare[]
+  reservationsStock reservation_stock[]
+  lignesDemandesTransfert ligne_demande_transfert_stock[]
+  lignes_reapprovisionnement ligne_reapprovisionnement[] @relation("ArticleLignesReapprovisionnement")
 
   @@index([idFamille])
   @@index([idUniteArticle])
@@ -204,6 +208,7 @@ model materiel {
   demande_intervention demande_intervention[]
   intervention         intervention[]
   mouvementsStock      mouvement_stock[]
+  lignesInventairePrepare LigneInventairePrepare[]
 
   @@index([idArticle])
   @@index([idEtat], map: "idEtat")
@@ -221,6 +226,8 @@ model magasin {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+inventairesPrepares InventairePrepare[]
+
   stocks           stock_article_magasin[]
   mouvementsSource mouvement_stock[]       @relation("MagasinSource")
   mouvementsDest   mouvement_stock[]       @relation("MagasinDestination")
@@ -228,6 +235,11 @@ model magasin {
   emplacements      emplacement_magasin[]
   lignesEntreeStock entree_stock_ligne[]
   lignesSortieStock sortie_stock_ligne[]
+  reservationsStock reservation_stock[]
+  demandesTransfertSource      demande_transfert_stock[] @relation("DemandeTransfertSource")
+demandesTransfertDestination demande_transfert_stock[] @relation("DemandeTransfertDestination")
+demandes_reapprovisionnement demande_reapprovisionnement[] @relation("MagasinDemandesReapprovisionnement")
+  
 }
 
 model stock_article_magasin {
@@ -470,4 +482,173 @@ model emplacement_magasin {
 
   @@unique([idMagasin, code])
   @@index([idMagasin])
+}
+enum StatutInventaire {
+  BROUILLON
+  EN_COMPTAGE
+  VALIDE
+  ANNULE
+}
+
+model InventairePrepare {
+  idInventairePrepare Int      @id @default(autoincrement())
+  numero               String   @unique @db.VarChar(50)
+
+  dateCreation   DateTime  @default(now())
+  dateComptage   DateTime?
+  dateValidation DateTime?
+
+  idMagasin Int
+  magasin   magasin @relation(fields: [idMagasin], references: [idMagasin], onDelete: Restrict)
+
+  statut      StatutInventaire @default(BROUILLON)
+  commentaire String?          @db.Text
+
+  lignes LigneInventairePrepare[]
+
+  @@index([idMagasin])
+  @@index([statut])
+  @@map("inventaire_prepare")
+}
+
+model LigneInventairePrepare {
+  idLigneInventairePrepare Int @id @default(autoincrement())
+
+  idInventairePrepare Int
+  inventairePrepare   InventairePrepare @relation(fields: [idInventairePrepare], references: [idInventairePrepare], onDelete: Cascade)
+
+  idArticle Int
+  article   article @relation(fields: [idArticle], references: [idArticle], onDelete: Restrict)
+
+  idMateriel Int?
+  materiel   materiel? @relation(fields: [idMateriel], references: [idMateriel], onDelete: SetNull)
+
+  quantiteTheorique Decimal  @default(0) @db.Decimal(10, 2)
+  quantiteReelle    Decimal? @db.Decimal(10, 2)
+  ecart             Decimal? @db.Decimal(10, 2)
+
+  commentaire String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([idInventairePrepare])
+  @@index([idArticle])
+  @@index([idMateriel])
+  @@map("ligne_inventaire_prepare")
+}
+model reservation_stock {
+  idReservationStock Int @id @default(autoincrement())
+
+  numero          String   @unique @db.VarChar(50)
+  dateReservation DateTime @default(now())
+  dateAnnulation  DateTime?
+
+  statut String @default("VALIDEE") @db.VarChar(30)
+  
+  idArticle Int
+  idMagasin Int
+
+  quantite Decimal @db.Decimal(10, 2)
+
+  demandeur   String? @db.VarChar(100)
+  origineType String? @db.VarChar(50)
+  origineId   Int?
+  commentaire String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  article article @relation(fields: [idArticle], references: [idArticle], onDelete: Restrict)
+  magasin magasin @relation(fields: [idMagasin], references: [idMagasin], onDelete: Restrict)
+
+  @@index([idArticle])
+  @@index([idMagasin])
+  @@index([statut])
+}
+model demande_transfert_stock {
+  idDemandeTransfertStock Int @id @default(autoincrement())
+
+  numero       String   @unique @db.VarChar(50)
+  dateDemande  DateTime @default(now())
+  dateValidation DateTime?
+  dateExecution  DateTime?
+  dateAnnulation DateTime?
+
+  statut String @default("EN_ATTENTE") @db.VarChar(30)
+
+  idMagasinSource      Int
+  idMagasinDestination Int
+
+  demandeur   String? @db.VarChar(100)
+  commentaire String? @db.Text
+
+  magasinSource magasin @relation("DemandeTransfertSource", fields: [idMagasinSource], references: [idMagasin], onDelete: Restrict)
+  magasinDestination magasin @relation("DemandeTransfertDestination", fields: [idMagasinDestination], references: [idMagasin], onDelete: Restrict)
+
+  lignes ligne_demande_transfert_stock[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([idMagasinSource])
+  @@index([idMagasinDestination])
+  @@index([statut])
+}
+
+model ligne_demande_transfert_stock {
+  idLigneDemandeTransfertStock Int @id @default(autoincrement())
+
+  idDemandeTransfertStock Int
+  idArticle Int
+
+  quantite Decimal @db.Decimal(10, 2)
+  commentaire String? @db.Text
+
+  demandeTransfert demande_transfert_stock @relation(fields: [idDemandeTransfertStock], references: [idDemandeTransfertStock], onDelete: Cascade)
+  article article @relation(fields: [idArticle], references: [idArticle], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([idDemandeTransfertStock, idArticle])
+  @@index([idDemandeTransfertStock])
+  @@index([idArticle])
+}
+model demande_reapprovisionnement {
+  idDemandeReapprovisionnement Int @id @default(autoincrement())
+
+  numero        String   @unique @db.VarChar(50)
+  dateDemande   DateTime @default(now())
+  dateValidation DateTime?
+  dateAnnulation DateTime?
+
+  statut      String  @default("BROUILLON") @db.VarChar(30)
+  demandeur   String? @db.VarChar(150)
+  commentaire String? @db.Text
+
+  idMagasin Int
+  magasin   magasin @relation("MagasinDemandesReapprovisionnement", fields: [idMagasin], references: [idMagasin])
+
+  lignes ligne_reapprovisionnement[]
+
+  @@index([idMagasin])
+  @@map("demande_reapprovisionnement")
+}
+
+model ligne_reapprovisionnement {
+  idLigneReapprovisionnement Int @id @default(autoincrement())
+
+  idDemandeReapprovisionnement Int
+  demande demande_reapprovisionnement @relation(fields: [idDemandeReapprovisionnement], references: [idDemandeReapprovisionnement], onDelete: Cascade)
+
+  idArticle Int
+  article article @relation("ArticleLignesReapprovisionnement", fields: [idArticle], references: [idArticle])
+
+  quantiteDemandee Decimal @db.Decimal(10, 2)
+  commentaire      String? @db.Text
+
+  @@index([idDemandeReapprovisionnement])
+  @@index([idArticle])
+  @@map("ligne_reapprovisionnement")
 }

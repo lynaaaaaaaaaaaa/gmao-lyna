@@ -71,14 +71,14 @@ export default function StockEntreesPage() {
               Actualiser
             </button>
 
-            <button
-              type="button"
-              onClick={handleCreate}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-sky-950 px-5 py-3 font-bold  shadow-sm transition hover:bg-sky-900"
-            >
-              <Plus size={18} />
-              Nouvelle entrée
-            </button>
+           <button
+  type="button"
+  onClick={() => router.push('/stock/entrees/nouvelle')}
+  className="inline-flex items-center justify-center gap-2 rounded-[22px] bg-[#0f3d56] px-7 py-4 text-base font-black text-white shadow-sm transition hover:bg-[#0b3044]"
+>
+  <Plus size={20} />
+  Nouvelle entrée
+</button>
           </div>
         </section>
 

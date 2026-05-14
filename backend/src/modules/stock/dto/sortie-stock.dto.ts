@@ -1,49 +1,51 @@
 import {
-  ArrayMinSize,
   IsArray,
   IsDateString,
   IsInt,
-  IsNumber,
+  IsNotEmpty,
   IsOptional,
+  IsPositive,
   IsString,
-  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class LigneSortieStockDto {
-  @Type(() => Number)
+export class LigneSortieStockDto {
   @IsInt()
+  @IsPositive()
+  @Type(() => Number)
   idArticle!: number;
 
-  @Type(() => Number)
   @IsInt()
+  @IsPositive()
+  @Type(() => Number)
   idMagasin!: number;
 
   @IsOptional()
-  @Type(() => Number)
   @IsInt()
+  @IsPositive()
+  @Type(() => Number)
   idEmplacement?: number;
 
   @IsOptional()
-  @Type(() => Number)
   @IsInt()
+  @IsPositive()
+  @Type(() => Number)
   idMateriel?: number;
 
+  @IsPositive()
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0.01)
-  quantite!: number;
+  quantite?: number;
 
   @IsOptional()
+  @IsPositive()
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
   prixUnitaire?: number;
 
   @IsOptional()
   @IsString()
   commentaire?: string;
+  
 }
 
 export class SortieStockDto {
@@ -59,7 +61,6 @@ export class SortieStockDto {
   commentaire?: string;
 
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => LigneSortieStockDto)
   lignes!: LigneSortieStockDto[];

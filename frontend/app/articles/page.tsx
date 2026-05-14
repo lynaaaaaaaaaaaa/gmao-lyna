@@ -45,8 +45,8 @@ export default function ArticlesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-8 py-8">
-      <div className="mx-auto max-w-7xl">
+  <div className="min-h-screen w-full bg-slate-50 px-5 py-6 lg:px-8">
+    <div className="w-full max-w-none">
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.35em] text-slate-400">
@@ -89,7 +89,8 @@ export default function ArticlesPage() {
             onRemove={handleDelete}
           />
         )}
-      </div>
-    </main>
+         </div>
+  </div>
+
   );
 }

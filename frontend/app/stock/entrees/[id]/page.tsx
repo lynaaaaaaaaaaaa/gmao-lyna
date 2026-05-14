@@ -336,7 +336,7 @@ export default function DetailEntreeStockPage() {
               <button
                 type="button"
                 onClick={() => exportBonEntreePdf(entree)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 font-bold  shadow-sm transition hover:bg-slate-800"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white shadow-sm transition hover:bg-slate-800"
               >
                 <Download size={18} />
                 Exporter PDF

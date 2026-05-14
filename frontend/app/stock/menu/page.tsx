@@ -51,9 +51,9 @@ export default function StockMenuPage() {
       bg: 'bg-emerald-50',
     },
     {
-      title: 'Nouvelle entrée',
+      title: 'Sortie stock',
       description: 'Créer un nouveau bon d’entrée stock.',
-      href: '/stock/entrees/nouvelle',
+      href: '/stock/sorties',
       icon: ArrowDownToLine,
       status: 'active',
       color: 'text-cyan-700',

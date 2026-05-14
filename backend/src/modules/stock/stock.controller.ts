@@ -7,11 +7,6 @@ import { SortieStockDto } from './dto/sortie-stock.dto';
 export class StockController {
   constructor(private readonly stockService: StockService) {}
 
-  @Post('entrees')
-  entreeStock(@Body() dto: EntreeStockDto) {
-    return this.stockService.entreeStock(dto);
-  }
-
   @Get()
   findAllStock() {
     return this.stockService.findAllStock();
@@ -32,8 +27,27 @@ export class StockController {
     return this.stockService.findEntreeById(id);
   }
 
+  @Post('entrees')
+  entreeStock(@Body() dto: EntreeStockDto) {
+    return this.stockService.entreeStock(dto);
+  }
+
+  @Get('sorties')
+  findSorties() {
+    return this.stockService.findSorties();
+  }
+
+  @Get('sorties/:id')
+  findSortieById(@Param('id', ParseIntPipe) id: number) {
+    return this.stockService.findSortieById(id);
+  }
+
   @Post('sorties')
   sortieStock(@Body() dto: SortieStockDto) {
     return this.stockService.sortieStock(dto);
   }
+  @Get('sorties')
+  findAllSorties() {
+  return this.stockService.findAllSorties();
+}
 }

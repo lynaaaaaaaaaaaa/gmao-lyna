@@ -23,15 +23,18 @@ type Props = {
 function formatDate(date?: string | null): string {
   if (!date) return '-';
 
-  return new Date(date).toLocaleDateString('fr-FR');
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) return '-';
+
+  return parsedDate.toLocaleDateString('fr-FR');
 }
 
 function getTotalQuantite(entree: StockEntree): number {
   return (
     entree.lignes?.reduce<number>(
-      (total: number, ligne: StockEntreeLigne) => {
-        return total + Number(ligne.quantite ?? 0);
-      },
+      (total: number, ligne: StockEntreeLigne) =>
+        total + Number(ligne.quantite ?? 0),
       0,
     ) ?? 0
   );
@@ -40,9 +43,8 @@ function getTotalQuantite(entree: StockEntree): number {
 function getMaterielsCount(entree: StockEntree): number {
   return (
     entree.lignes?.reduce<number>(
-      (total: number, ligne: StockEntreeLigne) => {
-        return total + (ligne.materiels?.length ?? 0);
-      },
+      (total: number, ligne: StockEntreeLigne) =>
+        total + (ligne.materiels?.length ?? 0),
       0,
     ) ?? 0
   );
@@ -122,19 +124,19 @@ export function StockEntreeListOptionB({
   onView,
 }: Props) {
   return (
-    <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+    <section className="w-full overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-3 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-            <FileText size={22} />
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+            <FileText size={23} />
           </div>
 
-          <div>
-            <h2 className="text-2xl font-black text-slate-900">
+          <div className="min-w-0">
+            <h2 className="text-[26px] font-black leading-tight text-slate-950">
               Liste des bons d’entrée
             </h2>
 
-            <p className="text-sm text-slate-500">
+            <p className="mt-1 text-sm font-medium text-slate-500">
               {entrees.length} bon(s) d’entrée enregistré(s)
             </p>
           </div>
@@ -142,108 +144,116 @@ export function StockEntreeListOptionB({
       </div>
 
       {loading ? (
-        <div className="p-8 text-slate-500">
+        <div className="p-8 text-sm font-medium text-slate-500">
           Chargement des bons d’entrée...
         </div>
       ) : entrees.length === 0 ? (
-        <div className="p-8 text-slate-500">
+        <div className="p-8 text-sm font-medium text-slate-500">
           Aucun bon d’entrée enregistré.
         </div>
       ) : (
         <div className="divide-y divide-slate-100">
-          {entrees.map((entree: StockEntree) => (
-            <article
-              key={entree.idEntreeStock}
-              className="grid gap-4 px-6 py-5 transition hover:bg-slate-50 lg:grid-cols-[220px_1fr_110px]"
-            >
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-lg font-black text-slate-900">
+          {entrees.map((entree: StockEntree) => {
+            const totalQuantite = getTotalQuantite(entree);
+            const totalMateriels = getMaterielsCount(entree);
+
+            return (
+              <article
+                key={entree.idEntreeStock}
+                className="grid w-full gap-5 px-6 py-5 transition hover:bg-slate-50/80 xl:grid-cols-[270px_minmax(0,1fr)_170px]"
+              >
+                <div className="min-w-0">
+                  <h3 className="truncate text-xl font-black text-slate-950">
                     {entree.numero || `BE-${entree.idEntreeStock}`}
                   </h3>
 
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-black uppercase ${getStatutStyle(
-                      entree.statut,
-                    )}`}
-                  >
-                    {entree.statut || 'STATUT'}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-black uppercase ${getStatutStyle(
+                        entree.statut,
+                      )}`}
+                    >
+                      {entree.statut || 'STATUT'}
+                    </span>
+                  </div>
+
+                  <p className="mt-3 text-sm font-bold text-slate-400">
+                    ID : {entree.idEntreeStock}
+                  </p>
+                </div>
+
+                <div className="grid min-w-0 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+                  <InfoItem
+                    icon={<CalendarDays size={16} />}
+                    label="Date"
+                    value={formatDate(entree.dateReception)}
+                  />
+
+                  <InfoItem
+                    icon={<Package size={16} />}
+                    label="Articles"
+                    value={getArticlesLabel(entree)}
+                  />
+
+                  <InfoItem
+                    icon={<Warehouse size={16} />}
+                    label="Magasins"
+                    value={getMagasinsLabel(entree)}
+                  />
+
+                  <InfoItem
+                    icon={<Layers size={16} />}
+                    label="Lignes"
+                    value={`${entree.lignes?.length ?? 0} ligne(s)`}
+                  />
+                </div>
+
+                <div className="flex min-w-0 items-center gap-2 xl:justify-end">
+                  <span className="flex h-12 min-w-12 items-center justify-center rounded-2xl bg-emerald-50 px-3 text-center text-sm font-black text-emerald-700">
+                    + {totalQuantite}
                   </span>
+
+                  <span className="flex h-12 min-w-16 items-center justify-center rounded-2xl bg-blue-50 px-3 text-center text-sm font-black text-blue-700">
+                    {totalMateriels} mat.
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => onView?.(entree.idEntreeStock)}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-900 hover:text-white"
+                    title="Voir détail"
+                  >
+                    <Eye size={19} />
+                  </button>
                 </div>
-
-                <p className="text-sm font-semibold text-slate-400">
-                  ID : {entree.idEntreeStock}
-                </p>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                    <CalendarDays size={15} />
-                    Date
-                  </div>
-
-                  <p className="font-bold text-slate-800">
-                    {formatDate(entree.dateReception)}
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                    <Package size={15} />
-                    Articles
-                  </div>
-
-                  <p className="truncate font-bold text-slate-800">
-                    {getArticlesLabel(entree)}
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                    <Warehouse size={15} />
-                    Magasins
-                  </div>
-
-                  <p className="truncate font-bold text-slate-800">
-                    {getMagasinsLabel(entree)}
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                    <Layers size={15} />
-                    Lignes
-                  </div>
-
-                  <p className="font-bold text-slate-800">
-                    {entree.lignes?.length ?? 0} ligne(s)
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 lg:justify-end">
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-black text-emerald-700">
-                  + {getTotalQuantite(entree)}
-                </span>
-
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-black text-blue-700">
-                  {getMaterielsCount(entree)} mat.
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() => onView?.(entree.idEntreeStock)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-900 hover:text-white"
-                  title="Voir détail"
-                >
-                  <Eye size={18} />
-                </button>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
+  );
+}
+
+function InfoItem({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+        {icon}
+        <span className="truncate">{label}</span>
+      </div>
+
+      <p className="mt-2 truncate text-base font-black text-slate-900">
+        {value}
+      </p>
+    </div>
   );
 }
