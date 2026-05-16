@@ -17,8 +17,17 @@ import { InventaireModule } from './modules/inventaire/inventaire.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { DemandesTransfertModule } from './modules/demandes-transfert/demandes-transfert.module';
 import { ReapprovisionnementModule } from './modules/reapprovisionnement/reapprovisionnement.module';
+import { GammeModule } from './modules/gamme/gamme.module';
+import { PlanPreventifPredefiniModule } from './modules/plan-preventif-predefini/plan-preventif-predefini.module';
+import { PlanPreventifModule } from './modules/plan-preventif/plan-preventif.module';
+import { HistoriqueDeclenchementPreventifModule } from './modules/historique-declenchement-preventif/historique-declenchement-preventif.module';
+import { InterventionModule } from './modules/intervention/intervention.module'; 
+import { DemandeInterventionModule } from './modules/demande-intervention/demande-intervention.module';
 @Module({
-  imports: [PrismaModule, FamilleModule,ReservationsModule,ModeleModule,EtatModeleModule,ArborescenceModule, PointStructureModule,UniteArticleModule, ArticleModule,MaterielModule, MagasinModule,InventairesPreparesModule, InventaireModule,StockModule,DemandesTransfertModule, ReapprovisionnementModule],
+  imports: [PrismaModule, FamilleModule,ReservationsModule,ModeleModule,EtatModeleModule,ArborescenceModule, PointStructureModule,UniteArticleModule, ArticleModule,MaterielModule, MagasinModule,InventairesPreparesModule, InventaireModule,StockModule,DemandesTransfertModule, ReapprovisionnementModule,GammeModule,PlanPreventifPredefiniModule,PlanPreventifModule,
+    HistoriqueDeclenchementPreventifModule,
+    InterventionModule,
+    DemandeInterventionModule,],
   controllers: [AppController],
   providers: [AppService],
 })

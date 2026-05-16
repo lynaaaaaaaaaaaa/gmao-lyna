@@ -7,6 +7,7 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  reservation_stock: any;
   constructor() {
     const adapter = new PrismaMariaDb({
       host: 'localhost',

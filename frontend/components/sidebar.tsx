@@ -48,9 +48,11 @@ const menuStructure: MenuModule[] = [
     href: '/maintenance',
     icon: BarChart3,
     submenu: [
-      { label: 'Demandes intervention', href: '/maintenance/demandes' },
+      { label: 'Saisie une DI ', href: '/maintenance/demandes' },
       { label: 'Interventions', href: '/maintenance/interventions' },
-      { label: 'Préventif', href: '/maintenance/preventif' },
+      { label: 'Plan Préventif', href: '/plans-preventifs' },
+      { label: 'Plan Préventif Prédéfinis', href: '/plans-preventifs-predefinis' },
+      { label: 'Gammes', href: '/gammes' },
     ],
   },
   {
