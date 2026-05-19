@@ -14,10 +14,9 @@ export type LigneStockEntreeDto = {
   commentaire?: string;
   materiels?: MaterielReceptionDto[];
 };
-
 export type CreateStockEntreeDto = {
   numero?: string;
-  dateReception: string;
+  dateReception?: string;
   commentaire?: string;
   lignes: LigneStockEntreeDto[];
 };

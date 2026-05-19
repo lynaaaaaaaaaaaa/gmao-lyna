@@ -3,6 +3,7 @@ import {
   IsDateString,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsPositive,
   IsString,
@@ -21,31 +22,14 @@ export class LigneSortieStockDto {
   @Type(() => Number)
   idMagasin!: number;
 
-  @IsOptional()
-  @IsInt()
+  @IsNumber()
   @IsPositive()
   @Type(() => Number)
-  idEmplacement?: number;
-
-  @IsOptional()
-  @IsInt()
-  @IsPositive()
-  @Type(() => Number)
-  idMateriel?: number;
-
-  @IsPositive()
-  @Type(() => Number)
-  quantite?: number;
-
-  @IsOptional()
-  @IsPositive()
-  @Type(() => Number)
-  prixUnitaire?: number;
+  quantite!: number;
 
   @IsOptional()
   @IsString()
   commentaire?: string;
-  
 }
 
 export class SortieStockDto {
@@ -53,8 +37,9 @@ export class SortieStockDto {
   @IsString()
   numero?: string;
 
+  @IsOptional()
   @IsDateString()
-  dateSortie!: string;
+  dateSortie?: string;
 
   @IsOptional()
   @IsString()

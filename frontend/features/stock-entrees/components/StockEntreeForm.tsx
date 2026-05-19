@@ -42,6 +42,16 @@ type StockEntreeFormProps = {
   onSubmit: (data: CreateStockEntreeDto) => Promise<void>;
 };
 
+function todayInputDate() {
+  const today = new Date();
+
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
 function createEmptyLigne(): LigneForm {
   return {
     idArticle: '',
@@ -84,7 +94,7 @@ function resizeMateriels(
 }
 
 export function StockEntreeForm({ onSubmit }: StockEntreeFormProps) {
-  const [dateReception, setDateReception] = useState('');
+  const [dateReception, setDateReception] = useState(todayInputDate());
   const [commentaire, setCommentaire] = useState('');
   const [lignes, setLignes] = useState<LigneForm[]>([createEmptyLigne()]);
 

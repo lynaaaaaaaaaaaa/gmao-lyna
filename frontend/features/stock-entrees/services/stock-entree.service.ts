@@ -1,5 +1,6 @@
 import {
   CreateStockEntreeDto,
+  LigneStockEntreeDto,
   StockEntree,
 } from '../types/stock-entree';
 
@@ -64,6 +65,100 @@ export async function getStockEntreeById(
     await handleApiError(
       response,
       "Erreur lors du chargement de l'entrée stock.",
+    );
+  }
+
+  return response.json();
+}
+export async function updateStockEntree(
+  id: number,
+  data: {
+    numero?: string;
+    dateReception?: string;
+    commentaire?: string;
+  },
+): Promise<StockEntree> {
+  const response = await fetch(`${API_URL}/stock/entrees/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    await handleApiError(
+      response,
+      "Erreur lors de la modification du bon d'entrée.",
+    );
+  }
+
+  return response.json();
+}
+
+export async function addStockEntreeLigne(
+  id: number,
+  data: LigneStockEntreeDto,
+): Promise<StockEntree> {
+  const response = await fetch(`${API_URL}/stock/entrees/${id}/lignes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    await handleApiError(
+      response,
+      "Erreur lors de l'ajout de la ligne d'entrée.",
+    );
+  }
+
+  return response.json();
+}
+
+export async function updateStockEntreeLigne(
+  id: number,
+  idLigne: number,
+  data: Partial<LigneStockEntreeDto>,
+): Promise<StockEntree> {
+  const response = await fetch(
+    `${API_URL}/stock/entrees/${id}/lignes/${idLigne}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    },
+  );
+
+  if (!response.ok) {
+    await handleApiError(
+      response,
+      "Erreur lors de la modification de la ligne d'entrée.",
+    );
+  }
+
+  return response.json();
+}
+
+export async function deleteStockEntreeLigne(
+  id: number,
+  idLigne: number,
+): Promise<StockEntree> {
+  const response = await fetch(
+    `${API_URL}/stock/entrees/${id}/lignes/${idLigne}`,
+    {
+      method: 'DELETE',
+    },
+  );
+
+  if (!response.ok) {
+    await handleApiError(
+      response,
+      "Erreur lors de la suppression de la ligne d'entrée.",
     );
   }
 

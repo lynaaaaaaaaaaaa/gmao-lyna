@@ -3,18 +3,41 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
 import { PrismaService } from '../../prisma/prisma.service';
-import { EntreeStockDto } from './dto/entree-stock.dto';
+import { Prisma } from '../../../generated/prisma/client';
+
+import {
+  EntreeStockDto,
+  LigneEntreeStockDto,
+  UpdateEntreeStockDto,
+  UpdateLigneEntreeStockDto,
+} from './dto/entree-stock.dto';
+
 import { SortieStockDto } from './dto/sortie-stock.dto';
+import { UpdateSortieStockDto } from './dto/update-sortie-stock.dto';
+import { LigneSortieStockCrudDto } from './dto/ligne-sortie-stock-crud.dto';
+import { UpdateLigneSortieStockDto } from './dto/update-ligne-sortie-stock.dto';
+
+type Tx = Prisma.TransactionClient;
 
 @Injectable()
 export class StockService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /* =========================================================
+     STOCK ACTUEL
+  ========================================================= */
+
   async findAllStock() {
     return this.prisma.stock_article_magasin.findMany({
       include: {
-        article: true,
+        article: {
+          include: {
+            uniteArticle: true,
+            famille: true,
+          },
+        },
         magasin: true,
       },
       orderBy: {
@@ -24,24 +47,25 @@ export class StockService {
   }
 
   async findAllMouvements() {
-    return this.prisma.mouvement_stock.findMany({
-      include: {
-        article: true,
-        materiel: true,
-        magasinSource: true,
-        magasinDestination: true,
-      },
-      orderBy: {
-        idMouvement: 'desc',
-      },
-    });
-  }
+  return this.prisma.mouvement_stock.findMany({
+    include: {
+      article: true,
+      materiel: true,
+      magasinSource: true,
+      magasinDestination: true,
+    },
+    orderBy: {
+      idMouvement: 'desc',
+    },
+  });
+}
+
+  /* =========================================================
+     ENTREES STOCK
+  ========================================================= */
 
   async findEntrees() {
     return this.prisma.entree_stock.findMany({
-      orderBy: {
-        idEntreeStock: 'desc',
-      },
       include: {
         lignes: {
           include: {
@@ -55,14 +79,15 @@ export class StockService {
           },
         },
       },
+      orderBy: {
+        dateReception: 'desc',
+      },
     });
   }
 
   async findEntreeById(idEntreeStock: number) {
     const entree = await this.prisma.entree_stock.findUnique({
-      where: {
-        idEntreeStock,
-      },
+      where: { idEntreeStock },
       include: {
         lignes: {
           include: {
@@ -87,39 +112,275 @@ export class StockService {
     return entree;
   }
 
+  async entreeStock(dto: EntreeStockDto) {
+    if (!dto.lignes || dto.lignes.length === 0) {
+      throw new BadRequestException(
+        "Un bon d'entrée doit contenir au moins une ligne.",
+      );
+    }
+
+    const idEntreeStock = await this.prisma.$transaction(async (tx) => {
+      const numero =
+        dto.numero?.trim() || (await this.generateNumeroEntree(tx));
+
+      const entree = await tx.entree_stock.create({
+        data: {
+          numero,
+          dateReception: this.parseDateOrNow(dto.dateReception),
+          commentaire: dto.commentaire?.trim() || null,
+          statut: 'VALIDEE',
+        },
+      });
+
+      for (const ligneDto of dto.lignes) {
+        await this.createEntreeLine(tx, entree.idEntreeStock, ligneDto);
+      }
+
+      return entree.idEntreeStock;
+    });
+
+    return this.findEntreeById(idEntreeStock);
+  }
+
+  async updateEntreeStock(idEntreeStock: number, dto: UpdateEntreeStockDto) {
+    const entree = await this.prisma.entree_stock.findUnique({
+      where: { idEntreeStock },
+    });
+
+    if (!entree) {
+      throw new NotFoundException(
+        `Le bon d'entrée stock #${idEntreeStock} est introuvable.`,
+      );
+    }
+
+    const data: Prisma.entree_stockUpdateInput = {};
+
+    if (dto.numero !== undefined) {
+      data.numero = dto.numero?.trim();
+    }
+
+    if (dto.commentaire !== undefined) {
+      data.commentaire = dto.commentaire?.trim() || null;
+    }
+
+    if (dto.dateReception !== undefined && dto.dateReception !== '') {
+      data.dateReception = this.parseDateOrNow(dto.dateReception);
+    }
+
+    await this.prisma.entree_stock.update({
+      where: { idEntreeStock },
+      data,
+    });
+
+    return this.findEntreeById(idEntreeStock);
+  }
+
+  async addEntreeStockLigne(idEntreeStock: number, dto: LigneEntreeStockDto) {
+    const entree = await this.prisma.entree_stock.findUnique({
+      where: { idEntreeStock },
+    });
+
+    if (!entree) {
+      throw new NotFoundException(
+        `Le bon d'entrée stock #${idEntreeStock} est introuvable.`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.createEntreeLine(tx, idEntreeStock, dto);
+    });
+
+    return this.findEntreeById(idEntreeStock);
+  }
+
+  async updateEntreeStockLigne(
+    idEntreeStock: number,
+    idLigneEntreeStock: number,
+    dto: UpdateLigneEntreeStockDto,
+  ) {
+    const ligne = await this.prisma.entree_stock_ligne.findUnique({
+      where: { idLigneEntreeStock },
+      include: {
+        entreeStock: true,
+      },
+    });
+
+    if (!ligne || ligne.idEntreeStock !== idEntreeStock) {
+      throw new NotFoundException(
+        `La ligne d'entrée #${idLigneEntreeStock} est introuvable dans ce bon.`,
+      );
+    }
+
+    const oldIdArticle = ligne.idArticle;
+    const oldIdMagasin = ligne.idMagasin;
+    const oldQuantite = Number(ligne.quantite);
+
+    const newIdArticle =
+      dto.idArticle !== undefined ? Number(dto.idArticle) : oldIdArticle;
+
+    const newIdMagasin =
+      dto.idMagasin !== undefined ? Number(dto.idMagasin) : oldIdMagasin;
+
+    const newIdEmplacement =
+      dto.idEmplacement !== undefined
+        ? dto.idEmplacement === null
+          ? null
+          : Number(dto.idEmplacement)
+        : ligne.idEmplacement;
+
+    const newQuantite =
+      dto.quantite !== undefined
+        ? this.toPositiveNumber(dto.quantite, 'La quantité est invalide.')
+        : oldQuantite;
+
+    const newPrixUnitaire =
+      dto.prixUnitaire !== undefined
+        ? this.toNullableNumber(dto.prixUnitaire)
+        : undefined;
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.assertArticleExists(tx, newIdArticle);
+
+      await this.retirerDuStock(tx, {
+        idArticle: oldIdArticle,
+        idMagasin: oldIdMagasin,
+        quantite: oldQuantite,
+      });
+
+      await this.ajouterAuStock(tx, {
+        idArticle: newIdArticle,
+        idMagasin: newIdMagasin,
+        quantite: newQuantite,
+      });
+
+      await tx.entree_stock_ligne.update({
+        where: { idLigneEntreeStock },
+        data: {
+          idArticle: newIdArticle,
+          idMagasin: newIdMagasin,
+          idEmplacement: newIdEmplacement,
+          quantite: newQuantite,
+          prixUnitaire: newPrixUnitaire,
+          numeroLot:
+            dto.numeroLot !== undefined
+              ? dto.numeroLot?.trim() || null
+              : undefined,
+          datePeremption:
+            dto.datePeremption !== undefined
+              ? this.parseNullableDate(dto.datePeremption)
+              : undefined,
+          commentaire:
+            dto.commentaire !== undefined
+              ? dto.commentaire?.trim() || null
+              : undefined,
+        },
+      });
+
+      await tx.mouvement_stock.create({
+        data: {
+          typeMouvement: 'AJUSTEMENT_ENTREE',
+          dateMouvement: new Date(),
+          quantite: newQuantite,
+          idArticle: newIdArticle,
+          idMateriel: null,
+          idMagasinSource: null,
+          idMagasinDestination: newIdMagasin,
+          origineType: 'ENTREE_STOCK',
+          origineId: idEntreeStock,
+          commentaire: `Modification de la ligne d'entrée #${idLigneEntreeStock}. Ancienne quantité: ${oldQuantite}, nouvelle quantité: ${newQuantite}.`,
+        },
+      });
+    });
+
+    return this.findEntreeById(idEntreeStock);
+  }
+
+  async deleteEntreeStockLigne(
+    idEntreeStock: number,
+    idLigneEntreeStock: number,
+  ) {
+    const ligne = await this.prisma.entree_stock_ligne.findUnique({
+      where: { idLigneEntreeStock },
+      include: {
+        entreeStock: true,
+      },
+    });
+
+    if (!ligne || ligne.idEntreeStock !== idEntreeStock) {
+      throw new NotFoundException(
+        `La ligne d'entrée #${idLigneEntreeStock} est introuvable dans ce bon.`,
+      );
+    }
+
+    const quantite = Number(ligne.quantite);
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.retirerDuStock(tx, {
+        idArticle: ligne.idArticle,
+        idMagasin: ligne.idMagasin,
+        quantite,
+      });
+
+      await tx.mouvement_stock.create({
+        data: {
+          typeMouvement: 'ANNULATION_ENTREE',
+          dateMouvement: new Date(),
+          quantite,
+          idArticle: ligne.idArticle,
+          idMateriel: null,
+          idMagasinSource: ligne.idMagasin,
+          idMagasinDestination: null,
+          origineType: 'ENTREE_STOCK',
+          origineId: idEntreeStock,
+          commentaire: `Suppression de la ligne d'entrée #${idLigneEntreeStock}.`,
+        },
+      });
+
+      await tx.entree_stock_ligne.delete({
+        where: { idLigneEntreeStock },
+      });
+    });
+
+    return this.findEntreeById(idEntreeStock);
+  }
+
+  /* =========================================================
+     SORTIES STOCK
+  ========================================================= */
+
   async findSorties() {
     return this.prisma.sortie_stock.findMany({
-      orderBy: {
-        idSortieStock: 'desc',
-      },
       include: {
         lignes: {
           include: {
             article: true,
             magasin: true,
             emplacement: true,
-            materiel: true,
           },
           orderBy: {
             idLigneSortieStock: 'asc',
           },
         },
       },
+      orderBy: {
+        dateSortie: 'desc',
+      },
     });
+  }
+
+  async findAllSorties() {
+    return this.findSorties();
   }
 
   async findSortieById(idSortieStock: number) {
     const sortie = await this.prisma.sortie_stock.findUnique({
-      where: {
-        idSortieStock,
-      },
+      where: { idSortieStock },
       include: {
         lignes: {
           include: {
             article: true,
             magasin: true,
             emplacement: true,
-            materiel: true,
           },
           orderBy: {
             idLigneSortieStock: 'asc',
@@ -137,597 +398,660 @@ export class StockService {
     return sortie;
   }
 
-  async entreeStock(dto: EntreeStockDto) {
-    if (!dto.lignes || dto.lignes.length === 0) {
-      throw new BadRequestException(
-        "Le bon d'entrée doit contenir au moins une ligne.",
-      );
-    }
-
-    const dateReception = new Date(dto.dateReception);
-
-    if (Number.isNaN(dateReception.getTime())) {
-      throw new BadRequestException('La date de réception est invalide.');
-    }
-
-    return this.prisma.$transaction(async (tx) => {
-      const numero =
-        dto.numero?.trim() ||
-        (await this.generateNumeroEntree(tx, dateReception));
-
-      const entreeStock = await tx.entree_stock.create({
-        data: {
-          numero,
-          dateReception,
-          commentaire: dto.commentaire?.trim() || null,
-          statut: 'VALIDEE',
-        },
-      });
-
-      const lignesCreees: any[] = [];
-      const materielsCrees: any[] = [];
-
-      for (const ligne of dto.lignes) {
-        const article = await tx.article.findUnique({
-          where: {
-            idArticle: ligne.idArticle,
-          },
-        });
-
-        if (!article) {
-          throw new NotFoundException(
-            `Article introuvable : ${ligne.idArticle}.`,
-          );
-        }
-
-        const articleLabel = article.reference ?? String(article.idArticle);
-
-        if (!article.gereEnStock) {
-          throw new BadRequestException(
-            `L'article ${articleLabel} n'est pas géré en stock.`,
-          );
-        }
-
-        await this.verifierMagasin(tx, ligne.idMagasin);
-
-        if (ligne.idEmplacement != null) {
-          await this.verifierEmplacement(tx, {
-            idEmplacement: ligne.idEmplacement,
-            idMagasin: ligne.idMagasin,
-          });
-        }
-
-        const quantite = Number(ligne.quantite);
-
-        if (quantite <= 0) {
-          throw new BadRequestException('La quantité doit être supérieure à 0.');
-        }
-
-        const articleSerialise = Boolean(article.serialise);
-
-        if (articleSerialise) {
-          if (!Number.isInteger(quantite)) {
-            throw new BadRequestException(
-              `L'article ${articleLabel} est sérialisé : la quantité doit être un nombre entier.`,
-            );
-          }
-
-          if (!ligne.materiels || ligne.materiels.length !== quantite) {
-            throw new BadRequestException(
-              `Pour l'article sérialisé ${articleLabel}, le nombre de matériels doit être égal à la quantité reçue.`,
-            );
-          }
-
-          this.validateMaterielsSansDoublons(ligne.materiels);
-        } else {
-          if (ligne.materiels && ligne.materiels.length > 0) {
-            throw new BadRequestException(
-              `L'article ${articleLabel} n'est pas sérialisé : vous ne devez pas saisir de matériels.`,
-            );
-          }
-        }
-
-        const ligneCreee = await tx.entree_stock_ligne.create({
-          data: {
-            idEntreeStock: entreeStock.idEntreeStock,
-            idArticle: ligne.idArticle,
-            idMagasin: ligne.idMagasin,
-            idEmplacement: ligne.idEmplacement ?? null,
-            quantite,
-            prixUnitaire: ligne.prixUnitaire ?? null,
-            numeroLot: ligne.numeroLot?.trim() || null,
-            datePeremption: ligne.datePeremption
-              ? new Date(ligne.datePeremption)
-              : null,
-            commentaire: ligne.commentaire?.trim() || null,
-          },
-        });
-
-        lignesCreees.push(ligneCreee);
-
-        await this.incrementerStock(tx, {
-          idArticle: ligne.idArticle,
-          idMagasin: ligne.idMagasin,
-          quantite,
-        });
-
-        if (articleSerialise && ligne.materiels) {
-          for (const item of ligne.materiels) {
-            const code = item.code.trim();
-            const numeroSerie = item.numeroSerie?.trim() || null;
-
-            const conditionsDoublon: any[] = [{ code }];
-
-            if (numeroSerie) {
-              conditionsDoublon.push({ numeroSerie });
-            }
-
-            const existingMateriel = await tx.materiel.findFirst({
-              where: {
-                OR: conditionsDoublon,
-              },
-            });
-
-            if (existingMateriel) {
-              throw new BadRequestException(
-                `Le matériel ${code} ou son numéro de série existe déjà.`,
-              );
-            }
-
-            const materiel = await tx.materiel.create({
-              data: {
-                code,
-                numeroSerie,
-                idArticle: article.idArticle,
-                idModele: article.idModele,
-                idLigneEntreeStock: ligneCreee.idLigneEntreeStock,
-                actif: true,
-              },
-            });
-
-            materielsCrees.push(materiel);
-
-            await tx.mouvement_stock.create({
-              data: {
-                typeMouvement: 'ENTREE',
-                dateMouvement: dateReception,
-                quantite: 1,
-                idArticle: article.idArticle,
-                idMateriel: materiel.idMateriel,
-                idMagasinSource: null,
-                idMagasinDestination: ligne.idMagasin,
-                origineType: 'ENTREE_STOCK',
-                origineId: entreeStock.idEntreeStock,
-                commentaire:
-                  ligne.commentaire?.trim() ||
-                  dto.commentaire?.trim() ||
-                  `Réception du matériel ${materiel.code}`,
-              },
-            });
-          }
-        } else {
-          await tx.mouvement_stock.create({
-            data: {
-              typeMouvement: 'ENTREE',
-              dateMouvement: dateReception,
-              quantite,
-              idArticle: article.idArticle,
-              idMateriel: null,
-              idMagasinSource: null,
-              idMagasinDestination: ligne.idMagasin,
-              origineType: 'ENTREE_STOCK',
-              origineId: entreeStock.idEntreeStock,
-              commentaire:
-                ligne.commentaire?.trim() ||
-                dto.commentaire?.trim() ||
-                'Entrée en stock',
-            },
-          });
-        }
-      }
-
-      return {
-        message: "Bon d'entrée stock enregistré avec succès.",
-        entreeStock,
-        lignesCreees,
-        materielsCrees,
-      };
-    });
-  }
-
   async sortieStock(dto: SortieStockDto) {
     if (!dto.lignes || dto.lignes.length === 0) {
       throw new BadRequestException(
-        'Le bon de sortie doit contenir au moins une ligne.',
+        'Un bon de sortie doit contenir au moins une ligne.',
       );
     }
 
-    const dateSortie = new Date(dto.dateSortie);
-
-    if (Number.isNaN(dateSortie.getTime())) {
-      throw new BadRequestException('La date de sortie est invalide.');
-    }
-
-    return this.prisma.$transaction(async (tx) => {
+    const idSortieStock = await this.prisma.$transaction(async (tx) => {
       const numero =
-        dto.numero?.trim() || (await this.generateNumeroSortie(tx, dateSortie));
+        dto.numero?.trim() || (await this.generateNumeroSortie(tx));
 
-      const sortieStock = await tx.sortie_stock.create({
+      const sortie = await tx.sortie_stock.create({
         data: {
           numero,
-          dateSortie,
+          dateSortie: this.parseDateOrNow(dto.dateSortie),
           commentaire: dto.commentaire?.trim() || null,
           statut: 'VALIDEE',
         },
       });
 
-      const lignesCreees: any[] = [];
-
-      for (const ligne of dto.lignes) {
-        const article = await tx.article.findUnique({
-          where: {
-            idArticle: ligne.idArticle,
-          },
-        });
-
-        if (!article) {
-          throw new NotFoundException(
-            `Article introuvable : ${ligne.idArticle}.`,
-          );
-        }
-
-        const articleLabel = article.reference ?? String(article.idArticle);
-
-        if (!article.gereEnStock) {
-          throw new BadRequestException(
-            `L'article ${articleLabel} n'est pas géré en stock.`,
-          );
-        }
-
-        await this.verifierMagasin(tx, ligne.idMagasin);
-
-        if (ligne.idEmplacement != null) {
-          await this.verifierEmplacement(tx, {
-            idEmplacement: ligne.idEmplacement,
-            idMagasin: ligne.idMagasin,
-          });
-        }
-
-        const quantite = Number(ligne.quantite);
-
-        if (quantite <= 0) {
-          throw new BadRequestException('La quantité doit être supérieure à 0.');
-        }
-
-        const articleSerialise = Boolean(article.serialise);
-
-        if (articleSerialise) {
-          if (ligne.idMateriel == null) {
-            throw new BadRequestException(
-              `L'article ${articleLabel} est sérialisé : vous devez choisir le matériel exact à sortir.`,
-            );
-          }
-
-          if (quantite !== 1) {
-            throw new BadRequestException(
-              'Pour un article sérialisé, la quantité de sortie doit être égale à 1 par matériel.',
-            );
-          }
-
-          const materiel = await tx.materiel.findUnique({
-            where: {
-              idMateriel: ligne.idMateriel,
-            },
-          });
-
-          if (!materiel) {
-            throw new NotFoundException(
-              `Matériel introuvable : ${ligne.idMateriel}.`,
-            );
-          }
-
-          if (materiel.idArticle !== ligne.idArticle) {
-            throw new BadRequestException(
-              "Le matériel choisi ne correspond pas à l'article sélectionné.",
-            );
-          }
-
-          await this.verifierMaterielDisponibleDansMagasin(tx, {
-            idMateriel: ligne.idMateriel,
-            idMagasin: ligne.idMagasin,
-          });
-        } else {
-          if (ligne.idMateriel != null) {
-            throw new BadRequestException(
-              'Un article non sérialisé ne doit pas avoir de matériel sélectionné.',
-            );
-          }
-        }
-
-        await this.verifierQuantiteDisponible(tx, {
-          idArticle: ligne.idArticle,
-          idMagasin: ligne.idMagasin,
-          quantiteDemandee: quantite,
-        });
-
-        const ligneCreee = await tx.sortie_stock_ligne.create({
-          data: {
-            idSortieStock: sortieStock.idSortieStock,
-            idArticle: ligne.idArticle,
-            idMagasin: ligne.idMagasin,
-            idEmplacement: ligne.idEmplacement ?? null,
-            idMateriel: ligne.idMateriel ?? null,
-            quantite,
-            prixUnitaire: ligne.prixUnitaire ?? null,
-            commentaire: ligne.commentaire?.trim() || null,
-          },
-        });
-
-        lignesCreees.push(ligneCreee);
-
-        await this.decrementerStock(tx, {
-          idArticle: ligne.idArticle,
-          idMagasin: ligne.idMagasin,
-          quantite,
-        });
-
-        await tx.mouvement_stock.create({
-          data: {
-            typeMouvement: 'SORTIE',
-            dateMouvement: dateSortie,
-            quantite,
-            idArticle: article.idArticle,
-            idMateriel: ligne.idMateriel ?? null,
-            idMagasinSource: ligne.idMagasin,
-            idMagasinDestination: null,
-            origineType: 'SORTIE_STOCK',
-            origineId: sortieStock.idSortieStock,
-            commentaire:
-              ligne.commentaire?.trim() ||
-              dto.commentaire?.trim() ||
-              'Sortie de stock',
-          },
-        });
+      for (const ligneDto of dto.lignes) {
+        await this.createSortieLine(tx, sortie.idSortieStock, ligneDto);
       }
 
-      return {
-        message: 'Bon de sortie stock enregistré avec succès.',
-        sortieStock,
-        lignesCreees,
-      };
+      return sortie.idSortieStock;
     });
+
+    return this.findSortieById(idSortieStock);
   }
 
-  private async verifierMagasin(tx: any, idMagasin: number) {
-    const magasin = await tx.magasin.findUnique({
-      where: {
-        idMagasin,
-      },
+  async updateSortieStock(idSortieStock: number, dto: UpdateSortieStockDto) {
+    const sortie = await this.prisma.sortie_stock.findUnique({
+      where: { idSortieStock },
     });
 
-    if (!magasin) {
-      throw new NotFoundException(`Magasin introuvable : ${idMagasin}.`);
-    }
-
-    return magasin;
-  }
-
-  private async verifierEmplacement(
-    tx: any,
-    params: {
-      idEmplacement: number;
-      idMagasin: number;
-    },
-  ) {
-    const emplacement = await tx.emplacement_magasin.findUnique({
-      where: {
-        idEmplacement: params.idEmplacement,
-      },
-    });
-
-    if (!emplacement) {
+    if (!sortie) {
       throw new NotFoundException(
-        `Emplacement introuvable : ${params.idEmplacement}.`,
+        `Le bon de sortie stock #${idSortieStock} est introuvable.`,
       );
     }
 
-    if (emplacement.idMagasin !== params.idMagasin) {
-      throw new BadRequestException(
-        "L'emplacement choisi n'appartient pas au magasin sélectionné.",
-      );
+    this.assertBonEditable(sortie.statut);
+
+    const data: Prisma.sortie_stockUpdateInput = {};
+
+    if (dto.numero !== undefined) {
+      data.numero = dto.numero?.trim();
     }
 
-    return emplacement;
-  }
+    if (dto.commentaire !== undefined) {
+      data.commentaire = dto.commentaire?.trim() || null;
+    }
 
-  private async incrementerStock(
-    tx: any,
-    params: {
-      idArticle: number;
-      idMagasin: number;
-      quantite: number;
-    },
-  ) {
-    const stockExistant = await tx.stock_article_magasin.findFirst({
-      where: {
-        idArticle: params.idArticle,
-        idMagasin: params.idMagasin,
-      },
+    if (dto.dateSortie !== undefined && dto.dateSortie !== '') {
+      data.dateSortie = this.parseDateOrNow(dto.dateSortie);
+    }
+
+    await this.prisma.sortie_stock.update({
+      where: { idSortieStock },
+      data,
     });
 
-    if (!stockExistant) {
-      return tx.stock_article_magasin.create({
+    return this.findSortieById(idSortieStock);
+  }
+
+  async addSortieStockLigne(
+    idSortieStock: number,
+    dto: LigneSortieStockCrudDto,
+  ) {
+    const sortie = await this.prisma.sortie_stock.findUnique({
+      where: { idSortieStock },
+    });
+
+    if (!sortie) {
+      throw new NotFoundException(
+        `Le bon de sortie stock #${idSortieStock} est introuvable.`,
+      );
+    }
+
+    this.assertBonEditable(sortie.statut);
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.createSortieLine(tx, idSortieStock, dto);
+    });
+
+    return this.findSortieById(idSortieStock);
+  }
+
+  async updateLigneSortieStock(
+  idSortieStock: number,
+  idLigneSortieStock: number,
+  dto: UpdateLigneSortieStockDto,
+) {
+  const ligne = await this.prisma.sortie_stock_ligne.findUnique({
+    where: { idLigneSortieStock },
+    include: {
+      sortieStock: true,
+    },
+  });
+
+  if (!ligne || ligne.idSortieStock !== idSortieStock) {
+    throw new NotFoundException(
+      `La ligne de sortie #${idLigneSortieStock} est introuvable dans ce bon.`,
+    );
+  }
+
+  this.assertBonEditable(ligne.sortieStock.statut);
+
+  const oldIdArticle = ligne.idArticle;
+  const oldIdMagasin = ligne.idMagasin;
+  const oldQuantite = Number(ligne.quantite);
+
+  const newIdArticle =
+    dto.idArticle !== undefined ? Number(dto.idArticle) : oldIdArticle;
+
+  const newIdMagasin =
+    dto.idMagasin !== undefined ? Number(dto.idMagasin) : oldIdMagasin;
+
+  const newIdEmplacement =
+    dto.idEmplacement !== undefined
+      ? dto.idEmplacement === null
+        ? null
+        : Number(dto.idEmplacement)
+      : ligne.idEmplacement;
+
+  const newQuantite =
+    dto.quantite !== undefined
+      ? this.toPositiveNumber(dto.quantite, 'La quantité sortie est invalide.')
+      : oldQuantite;
+
+  const newPrixUnitaire =
+    dto.prixUnitaire !== undefined
+      ? this.toNullableNumber(dto.prixUnitaire)
+      : undefined;
+
+  const articleChanged = oldIdArticle !== newIdArticle;
+  const magasinChanged = oldIdMagasin !== newIdMagasin;
+  const ecartQuantite = newQuantite - oldQuantite;
+
+  await this.prisma.$transaction(async (tx) => {
+    await this.assertArticleNonSerialise(tx, newIdArticle);
+
+    /*
+      CAS 1 :
+      L'article ou le magasin change.
+      On remet l'ancienne sortie dans l'ancien stock,
+      puis on applique la nouvelle sortie.
+    */
+    if (articleChanged || magasinChanged) {
+      await this.remettreDansStock(tx, {
+        idArticle: oldIdArticle,
+        idMagasin: oldIdMagasin,
+        quantite: oldQuantite,
+      });
+
+      await this.retirerDuStock(tx, {
+        idArticle: newIdArticle,
+        idMagasin: newIdMagasin,
+        quantite: newQuantite,
+      });
+
+      await tx.sortie_stock_ligne.update({
+        where: { idLigneSortieStock },
         data: {
-          idArticle: params.idArticle,
-          idMagasin: params.idMagasin,
-          quantitePhysique: params.quantite,
-          quantiteReservee: 0,
-          quantiteDisponible: params.quantite,
+          idArticle: newIdArticle,
+          idMagasin: newIdMagasin,
+          idEmplacement: newIdEmplacement,
+          quantite: newQuantite,
+          prixUnitaire: newPrixUnitaire,
+          commentaire:
+            dto.commentaire !== undefined
+              ? dto.commentaire?.trim() || null
+              : undefined,
         },
+      });
+
+      // Nouvelle ligne mouvement : correction retour ancienne sortie
+      await tx.mouvement_stock.create({
+        data: {
+          typeMouvement: 'CORRECTION',
+          dateMouvement: new Date(),
+          quantite: oldQuantite,
+          idArticle: oldIdArticle,
+          idMateriel: null,
+          idMagasinSource: null,
+          idMagasinDestination: oldIdMagasin,
+          origineType: 'SORTIE_STOCK',
+          origineId: idSortieStock,
+          commentaire: `Correction ligne sortie #${idLigneSortieStock} : annulation de l'ancienne sortie. Ancien article #${oldIdArticle}, ancien magasin #${oldIdMagasin}, quantité ${oldQuantite}.`,
+        },
+      });
+
+      // Nouvelle ligne mouvement : correction nouvelle sortie
+      await tx.mouvement_stock.create({
+        data: {
+          typeMouvement: 'CORRECTION',
+          dateMouvement: new Date(),
+          quantite: newQuantite,
+          idArticle: newIdArticle,
+          idMateriel: null,
+          idMagasinSource: newIdMagasin,
+          idMagasinDestination: null,
+          origineType: 'SORTIE_STOCK',
+          origineId: idSortieStock,
+          commentaire: `Correction ligne sortie #${idLigneSortieStock} : application de la nouvelle sortie. Nouvel article #${newIdArticle}, nouveau magasin #${newIdMagasin}, quantité ${newQuantite}.`,
+        },
+      });
+
+      return;
+    }
+
+    /*
+      CAS 2 :
+      Même article et même magasin.
+      On corrige seulement l'écart de quantité.
+    */
+    if (ecartQuantite > 0) {
+      // La sortie augmente : on retire seulement l'écart du stock.
+      await this.retirerDuStock(tx, {
+        idArticle: newIdArticle,
+        idMagasin: newIdMagasin,
+        quantite: ecartQuantite,
       });
     }
 
-    const quantitePhysiqueActuelle = Number(
-      stockExistant.quantitePhysique ?? 0,
-    );
-    const quantiteReservee = Number(stockExistant.quantiteReservee ?? 0);
+    if (ecartQuantite < 0) {
+      // La sortie diminue : on remet seulement l'écart dans le stock.
+      await this.remettreDansStock(tx, {
+        idArticle: newIdArticle,
+        idMagasin: newIdMagasin,
+        quantite: Math.abs(ecartQuantite),
+      });
+    }
 
-    const nouvelleQuantitePhysique =
-      quantitePhysiqueActuelle + params.quantite;
-
-    return tx.stock_article_magasin.update({
-      where: {
-        idStock: stockExistant.idStock,
-      },
+    await tx.sortie_stock_ligne.update({
+      where: { idLigneSortieStock },
       data: {
-        quantitePhysique: nouvelleQuantitePhysique,
-        quantiteDisponible: nouvelleQuantitePhysique - quantiteReservee,
+        idArticle: newIdArticle,
+        idMagasin: newIdMagasin,
+        idEmplacement: newIdEmplacement,
+        quantite: newQuantite,
+        prixUnitaire: newPrixUnitaire,
+        commentaire:
+          dto.commentaire !== undefined
+            ? dto.commentaire?.trim() || null
+            : undefined,
       },
     });
+
+    /*
+      IMPORTANT :
+      On crée TOUJOURS une nouvelle ligne CORRECTION.
+      On ne modifie jamais l'ancien mouvement SORTIE.
+    */
+    await tx.mouvement_stock.create({
+      data: {
+        typeMouvement: 'CORRECTION',
+        dateMouvement: new Date(),
+        quantite: newQuantite,
+        idArticle: newIdArticle,
+        idMateriel: null,
+        idMagasinSource: ecartQuantite > 0 ? newIdMagasin : null,
+        idMagasinDestination: ecartQuantite < 0 ? newIdMagasin : null,
+        origineType: 'SORTIE_STOCK',
+        origineId: idSortieStock,
+        commentaire: `Correction de la ligne sortie #${idLigneSortieStock}. Ancienne quantité: ${oldQuantite}, nouvelle quantité: ${newQuantite}.`,
+      },
+    });
+  });
+
+  return this.findSortieById(idSortieStock);
+}
+
+  async deleteSortieStockLigne(
+    idSortieStock: number,
+    idLigneSortieStock: number,
+  ) {
+    const ligne = await this.prisma.sortie_stock_ligne.findUnique({
+      where: { idLigneSortieStock },
+      include: {
+        sortieStock: true,
+      },
+    });
+
+    if (!ligne || ligne.idSortieStock !== idSortieStock) {
+      throw new NotFoundException(
+        `La ligne de sortie #${idLigneSortieStock} est introuvable dans ce bon.`,
+      );
+    }
+
+    this.assertBonEditable(ligne.sortieStock.statut);
+
+    const quantite = Number(ligne.quantite);
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.remettreDansStock(tx, {
+        idArticle: ligne.idArticle,
+        idMagasin: ligne.idMagasin,
+        quantite,
+      });
+
+      await tx.mouvement_stock.create({
+        data: {
+          typeMouvement: 'ANNULATION_SORTIE',
+          dateMouvement: new Date(),
+          quantite,
+          idArticle: ligne.idArticle,
+          idMateriel: null,
+          idMagasinSource: null,
+          idMagasinDestination: ligne.idMagasin,
+          origineType: 'SORTIE_STOCK',
+          origineId: idSortieStock,
+          commentaire: `Suppression de la ligne sortie #${idLigneSortieStock}.`,
+        },
+      });
+
+      await tx.sortie_stock_ligne.delete({
+        where: { idLigneSortieStock },
+      });
+    });
+
+    return this.findSortieById(idSortieStock);
   }
 
-  private async decrementerStock(
-    tx: any,
-    params: {
+  /* =========================================================
+     HELPERS ENTREES / SORTIES
+  ========================================================= */
+
+  private async createEntreeLine(
+    tx: Tx,
+    idEntreeStock: number,
+    dto: LigneEntreeStockDto,
+  ) {
+    const idArticle = Number(dto.idArticle);
+    const idMagasin = Number(dto.idMagasin);
+
+    const quantite = this.toPositiveNumber(
+      dto.quantite,
+      'La quantité entrée est invalide.',
+    );
+
+    await this.assertArticleExists(tx, idArticle);
+
+    const ligne = await tx.entree_stock_ligne.create({
+      data: {
+        idEntreeStock,
+        idArticle,
+        idMagasin,
+        idEmplacement: dto.idEmplacement ?? null,
+        quantite,
+        prixUnitaire: this.toNullableNumber(dto.prixUnitaire),
+        numeroLot: dto.numeroLot?.trim() || null,
+        datePeremption: this.parseNullableDate(dto.datePeremption),
+        commentaire: dto.commentaire?.trim() || null,
+      },
+    });
+
+    await this.ajouterAuStock(tx, {
+      idArticle,
+      idMagasin,
+      quantite,
+    });
+
+    await tx.mouvement_stock.create({
+      data: {
+        typeMouvement: 'ENTREE',
+        dateMouvement: new Date(),
+        quantite,
+        idArticle,
+        idMateriel: null,
+        idMagasinSource: null,
+        idMagasinDestination: idMagasin,
+        origineType: 'ENTREE_STOCK',
+        origineId: idEntreeStock,
+        commentaire: `Entrée stock - ligne #${ligne.idLigneEntreeStock}.`,
+      },
+    });
+
+    if (dto.materiels && dto.materiels.length > 0) {
+      for (const materiel of dto.materiels) {
+        await (tx.materiel as any).create({
+          data: {
+            code: materiel.code,
+            libelle: materiel.numeroSerie || materiel.code,
+            numeroSerie: materiel.numeroSerie || null,
+            idArticle,
+            idLigneEntreeStock: ligne.idLigneEntreeStock,
+          },
+        });
+      }
+    }
+
+    return ligne;
+  }
+
+  private async createSortieLine(
+    tx: Tx,
+    idSortieStock: number,
+    dto: LigneSortieStockCrudDto,
+  ) {
+    const idArticle = Number(dto.idArticle);
+    const idMagasin = Number(dto.idMagasin);
+
+    const quantite = this.toPositiveNumber(
+      dto.quantite,
+      'La quantité sortie est invalide.',
+    );
+
+    const prixUnitaire = this.toNullableNumber(dto.prixUnitaire);
+
+    await this.assertArticleNonSerialise(tx, idArticle);
+
+    const sortie = await tx.sortie_stock.findUnique({
+      where: { idSortieStock },
+      select: {
+        dateSortie: true,
+      },
+    });
+
+    if (!sortie) {
+      throw new NotFoundException(
+        `Le bon de sortie stock #${idSortieStock} est introuvable.`,
+      );
+    }
+
+    await this.retirerDuStock(tx, {
+      idArticle,
+      idMagasin,
+      quantite,
+    });
+
+    const ligne = await tx.sortie_stock_ligne.create({
+      data: {
+        idSortieStock,
+        idArticle,
+        idMagasin,
+        idEmplacement: dto.idEmplacement ?? null,
+        idMateriel: null,
+        quantite,
+        prixUnitaire,
+        commentaire: dto.commentaire?.trim() || null,
+      },
+    });
+
+    await tx.mouvement_stock.create({
+      data: {
+        typeMouvement: 'SORTIE',
+        dateMouvement: sortie.dateSortie,
+        quantite,
+        idArticle,
+        idMateriel: null,
+        idMagasinSource: idMagasin,
+        idMagasinDestination: null,
+        origineType: 'SORTIE_STOCK',
+        origineId: idSortieStock,
+        commentaire: `Sortie stock - ligne #${ligne.idLigneSortieStock}.`,
+      },
+    });
+
+    return ligne;
+  }
+
+  private async ajouterAuStock(
+    tx: Tx,
+    data: {
       idArticle: number;
       idMagasin: number;
       quantite: number;
     },
   ) {
-    const stockExistant = await tx.stock_article_magasin.findFirst({
+    await tx.stock_article_magasin.upsert({
       where: {
-        idArticle: params.idArticle,
-        idMagasin: params.idMagasin,
+        idArticle_idMagasin: {
+          idArticle: data.idArticle,
+          idMagasin: data.idMagasin,
+        },
       },
-    });
-
-    if (!stockExistant) {
-      throw new BadRequestException('Aucun stock trouvé pour cet article.');
-    }
-
-    const quantitePhysique = Number(stockExistant.quantitePhysique ?? 0);
-    const quantiteReservee = Number(stockExistant.quantiteReservee ?? 0);
-    const quantiteDisponible = Number(stockExistant.quantiteDisponible ?? 0);
-
-    if (quantiteDisponible < params.quantite) {
-      throw new BadRequestException(
-        `Stock insuffisant. Disponible : ${quantiteDisponible}, demandé : ${params.quantite}.`,
-      );
-    }
-
-    const nouvelleQuantitePhysique = quantitePhysique - params.quantite;
-    const nouvelleQuantiteDisponible =
-      nouvelleQuantitePhysique - quantiteReservee;
-
-    return tx.stock_article_magasin.update({
-      where: {
-        idStock: stockExistant.idStock,
+      create: {
+        idArticle: data.idArticle,
+        idMagasin: data.idMagasin,
+        quantitePhysique: data.quantite,
+        quantiteReservee: 0,
+        quantiteDisponible: data.quantite,
       },
-      data: {
-        quantitePhysique: nouvelleQuantitePhysique,
-        quantiteDisponible: nouvelleQuantiteDisponible,
+      update: {
+        quantitePhysique: {
+          increment: data.quantite,
+        },
+        quantiteDisponible: {
+          increment: data.quantite,
+        },
       },
     });
   }
 
-  private async verifierQuantiteDisponible(
-    tx: any,
-    params: {
+  private async remettreDansStock(
+    tx: Tx,
+    data: {
       idArticle: number;
       idMagasin: number;
-      quantiteDemandee: number;
+      quantite: number;
     },
   ) {
-    const stock = await tx.stock_article_magasin.findFirst({
+    await this.ajouterAuStock(tx, data);
+  }
+
+  private async retirerDuStock(
+    tx: Tx,
+    data: {
+      idArticle: number;
+      idMagasin: number;
+      quantite: number;
+    },
+  ) {
+    const stock = await tx.stock_article_magasin.findUnique({
       where: {
-        idArticle: params.idArticle,
-        idMagasin: params.idMagasin,
+        idArticle_idMagasin: {
+          idArticle: data.idArticle,
+          idMagasin: data.idMagasin,
+        },
       },
     });
 
     if (!stock) {
-      throw new BadRequestException('Aucun stock disponible pour cet article.');
-    }
-
-    const disponible = Number(stock.quantiteDisponible ?? 0);
-
-    if (disponible < params.quantiteDemandee) {
       throw new BadRequestException(
-        `Quantité insuffisante. Disponible : ${disponible}, demandé : ${params.quantiteDemandee}.`,
+        `Aucun stock trouvé pour l'article #${data.idArticle} dans le magasin #${data.idMagasin}.`,
       );
     }
-  }
 
-  private async verifierMaterielDisponibleDansMagasin(
-    tx: any,
-    params: {
-      idMateriel: number;
-      idMagasin: number;
-    },
-  ) {
-    const dernierMouvement = await tx.mouvement_stock.findFirst({
+    const disponible = Number(stock.quantiteDisponible);
+
+    if (disponible < data.quantite) {
+      throw new BadRequestException(
+        `Stock disponible insuffisant. Disponible : ${disponible}. Demandé : ${data.quantite}.`,
+      );
+    }
+
+    await tx.stock_article_magasin.update({
       where: {
-        idMateriel: params.idMateriel,
+        idArticle_idMagasin: {
+          idArticle: data.idArticle,
+          idMagasin: data.idMagasin,
+        },
       },
-      orderBy: {
-        idMouvement: 'desc',
+      data: {
+        quantitePhysique: {
+          decrement: data.quantite,
+        },
+        quantiteDisponible: {
+          decrement: data.quantite,
+        },
       },
     });
+  }
 
-    if (!dernierMouvement) {
-      throw new BadRequestException("Ce matériel n'a aucun mouvement stock.");
+  private async assertArticleExists(tx: Tx, idArticle: number) {
+    const article = await tx.article.findUnique({
+      where: { idArticle },
+    });
+
+    if (!article) {
+      throw new NotFoundException(`Article #${idArticle} introuvable.`);
     }
 
-    if (
-      dernierMouvement.typeMouvement !== 'ENTREE' ||
-      dernierMouvement.idMagasinDestination !== params.idMagasin
-    ) {
+    return article;
+  }
+
+  private async assertArticleNonSerialise(tx: Tx, idArticle: number) {
+    const article = await this.assertArticleExists(tx, idArticle);
+
+    if (article.serialise) {
       throw new BadRequestException(
-        "Ce matériel n'est pas disponible dans ce magasin.",
+        'Impossible de faire une sortie stock simple pour un article sérialisé.',
+      );
+    }
+
+    return article;
+  }
+
+  private assertBonEditable(statut?: string | null) {
+    if (statut === 'ANNULEE' || statut === 'ANNULE') {
+      throw new BadRequestException(
+        'Ce bon est annulé, il ne peut plus être modifié.',
       );
     }
   }
 
-  private validateMaterielsSansDoublons(
-    materiels: {
-      code: string;
-      numeroSerie?: string;
-    }[],
-  ) {
-    const codes = new Set<string>();
-    const numerosSerie = new Set<string>();
+  private toPositiveNumber(value: unknown, message: string) {
+    const numberValue = Number(value);
 
-    for (const materiel of materiels) {
-      const code = materiel.code.trim();
-
-      if (!code) {
-        throw new BadRequestException('Le code matériel est obligatoire.');
-      }
-
-      if (codes.has(code)) {
-        throw new BadRequestException(
-          `Le code matériel ${code} est saisi plusieurs fois.`,
-        );
-      }
-
-      codes.add(code);
-
-      const numeroSerie = materiel.numeroSerie?.trim();
-
-      if (numeroSerie) {
-        if (numerosSerie.has(numeroSerie)) {
-          throw new BadRequestException(
-            `Le numéro de série ${numeroSerie} est saisi plusieurs fois.`,
-          );
-        }
-
-        numerosSerie.add(numeroSerie);
-      }
+    if (!Number.isFinite(numberValue) || numberValue <= 0) {
+      throw new BadRequestException(message);
     }
+
+    return numberValue;
   }
 
-  private async generateNumeroEntree(tx: any, date: Date) {
-    const year = date.getFullYear();
+  private toNullableNumber(value: unknown): number | null {
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+
+    const numberValue = Number(value);
+
+    if (!Number.isFinite(numberValue)) {
+      throw new BadRequestException('Valeur numérique invalide.');
+    }
+
+    return numberValue;
+  }
+
+  private parseDateOrNow(value?: string | Date | null) {
+    if (!value) {
+      return new Date();
+    }
+
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) {
+        throw new BadRequestException('Date invalide.');
+      }
+
+      return value;
+    }
+
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      return new Date();
+    }
+
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmedValue)) {
+      const [day, month, year] = trimmedValue.split('/').map(Number);
+      return new Date(year, month - 1, day);
+    }
+
+    const date = new Date(trimmedValue);
+
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('Date invalide.');
+    }
+
+    return date;
+  }
+
+  private parseNullableDate(value?: string | Date | null) {
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+
+    return this.parseDateOrNow(value);
+  }
+
+  private async generateNumeroEntree(tx: Tx) {
+    const year = new Date().getFullYear();
 
     const last = await tx.entree_stock.findFirst({
       where: {
@@ -740,22 +1064,15 @@ export class StockService {
       },
     });
 
-    let nextNumber = 1;
+    const lastNumber = last?.numero ? Number(last.numero.split('-').pop()) : 0;
 
-    if (last?.numero && last.numero.includes('-')) {
-      const parts = last.numero.split('-');
-      const lastNumber = Number(parts[parts.length - 1]);
-
-      if (!Number.isNaN(lastNumber)) {
-        nextNumber = lastNumber + 1;
-      }
-    }
+    const nextNumber = Number.isFinite(lastNumber) ? lastNumber + 1 : 1;
 
     return `BE-${year}-${String(nextNumber).padStart(4, '0')}`;
   }
 
-  private async generateNumeroSortie(tx: any, date: Date) {
-    const year = date.getFullYear();
+  private async generateNumeroSortie(tx: Tx) {
+    const year = new Date().getFullYear();
 
     const last = await tx.sortie_stock.findFirst({
       where: {
@@ -768,34 +1085,10 @@ export class StockService {
       },
     });
 
-    let nextNumber = 1;
+    const lastNumber = last?.numero ? Number(last.numero.split('-').pop()) : 0;
 
-    if (last?.numero && last.numero.includes('-')) {
-      const parts = last.numero.split('-');
-      const lastNumber = Number(parts[parts.length - 1]);
-
-      if (!Number.isNaN(lastNumber)) {
-        nextNumber = lastNumber + 1;
-      }
-    }
+    const nextNumber = Number.isFinite(lastNumber) ? lastNumber + 1 : 1;
 
     return `BS-${year}-${String(nextNumber).padStart(4, '0')}`;
   }
- async findAllSorties() {
-  return this.prisma.sortie_stock.findMany({
-    include: {
-      lignes: {
-        include: {
-          article: true,
-          magasin: true,
-          emplacement: true,
-          materiel: true,
-        },
-      },
-    },
-    orderBy: {
-      idSortieStock: 'desc',
-    },
-  });
-}
 }

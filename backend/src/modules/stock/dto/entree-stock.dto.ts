@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -39,13 +40,13 @@ export class LigneEntreeStockDto {
   idEmplacement?: number;
 
   @IsNumber()
-  @IsPositive()
+  @Min(0.01)
   @Type(() => Number)
   quantite!: number;
 
   @IsOptional()
   @IsNumber()
-  @IsPositive()
+  @Min(0)
   @Type(() => Number)
   prixUnitaire?: number;
 
@@ -69,12 +70,13 @@ export class LigneEntreeStockDto {
 }
 
 export class EntreeStockDto {
-    @IsOptional()
+  @IsOptional()
   @IsString()
   numero?: string;
-  
+
+  @IsOptional()
   @IsDateString()
-  dateReception!: string;
+  dateReception?: string;
 
   @IsOptional()
   @IsString()
@@ -84,4 +86,62 @@ export class EntreeStockDto {
   @ValidateNested({ each: true })
   @Type(() => LigneEntreeStockDto)
   lignes!: LigneEntreeStockDto[];
+}
+
+export class UpdateEntreeStockDto {
+  @IsOptional()
+  @IsString()
+  numero?: string;
+
+  @IsOptional()
+  @IsDateString()
+  dateReception?: string;
+
+  @IsOptional()
+  @IsString()
+  commentaire?: string;
+}
+
+export class UpdateLigneEntreeStockDto {
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  @Type(() => Number)
+  idArticle?: number;
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  @Type(() => Number)
+  idMagasin?: number;
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  @Type(() => Number)
+  idEmplacement?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  @Type(() => Number)
+  quantite?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  prixUnitaire?: number;
+
+  @IsOptional()
+  @IsString()
+  numeroLot?: string;
+
+  @IsOptional()
+  @IsDateString()
+  datePeremption?: string;
+
+  @IsOptional()
+  @IsString()
+  commentaire?: string;
 }

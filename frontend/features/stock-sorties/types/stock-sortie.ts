@@ -1,76 +1,66 @@
-export type StockArticle = {
-  idArticle: number;
-  reference?: string | null;
-  code?: string | null;
-  libelle?: string | null;
-  designation?: string | null;
-  serialise?: boolean | null;
-};
-
-export type StockMagasin = {
-  idMagasin: number;
-  code?: string | null;
-  libelle?: string | null;
-};
-
-export type StockEmplacement = {
-  idEmplacement: number;
-  code?: string | null;
-  libelle?: string | null;
-};
-
-export type StockMateriel = {
-  idMateriel: number;
-  code?: string | null;
-  numeroSerie?: string | null;
-  libelle?: string | null;
-};
-
 export type StockSortieLigne = {
   idLigneSortieStock: number;
-  idSortieStock?: number;
-  idArticle?: number;
-  idMagasin?: number;
+  idSortieStock: number;
+  idArticle: number;
+  idMagasin: number;
   idEmplacement?: number | null;
   idMateriel?: number | null;
-
   quantite: number | string;
   prixUnitaire?: number | string | null;
   commentaire?: string | null;
 
-  article?: StockArticle | null;
-  magasin?: StockMagasin | null;
-  emplacement?: StockEmplacement | null;
-  materiel?: StockMateriel | null;
+  article?: {
+    idArticle: number;
+    reference?: string | null;
+    designation?: string | null;
+    libelle?: string | null;
+    serialise?: boolean | null;
+  } | null;
+
+  magasin?: {
+    idMagasin: number;
+    code?: string | null;
+    libelle?: string | null;
+  } | null;
 };
 
 export type StockSortie = {
   idSortieStock: number;
   numero?: string | null;
-  dateSortie?: string | Date | null;
+  dateSortie: string;
   commentaire?: string | null;
   statut?: string | null;
-  createdAt?: string | Date;
-  updatedAt?: string | Date;
-
-  lignes?: StockSortieLigne[];
   sortie_stock_ligne?: StockSortieLigne[];
-  sortieStockLigne?: StockSortieLigne[];
-};
-
-export type LigneStockSortieDto = {
-  idArticle: number;
-  idMagasin: number;
-  idEmplacement?: number | null;
-  idMateriel?: number | null;
-  quantite: number;
-  prixUnitaire?: number | null;
-  commentaire?: string;
+  lignes?: StockSortieLigne[];
 };
 
 export type CreateStockSortieDto = {
   numero?: string;
   dateSortie: string;
-  commentaire?: string;
-  lignes: LigneStockSortieDto[];
+  commentaire?: string | null;
+  lignes: LigneSortieStockCrudDto[];
+};
+
+export type UpdateStockSortieDto = {
+  numero?: string;
+  dateSortie?: string;
+  commentaire?: string | null;
+};
+
+export type LigneSortieStockCrudDto = {
+  idArticle: number;
+  idMagasin: number;
+  idEmplacement?: number | null;
+  quantite: number;
+  prixUnitaire?: number | null;
+  commentaire?: string | null;
+};
+
+export type UpdateLigneSortieStockDto = {
+  idArticle?: number | null;
+  idMagasin?: number | null;
+  idEmplacement?: number | null;
+  quantite?: number | null;
+  prixUnitaire?: number | null;
+  commentaire?: string | null;
 };

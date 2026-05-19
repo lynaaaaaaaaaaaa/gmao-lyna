@@ -1,26 +1,22 @@
 import type {
-  CreateStockSortieDto,
   StockSortie,
+  CreateStockSortieDto,
+  UpdateStockSortieDto,
+  LigneSortieStockCrudDto,
+  UpdateLigneSortieStockDto,
 } from '../types/stock-sortie';
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = 'http://localhost:3001';
 
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    let message = 'Erreur serveur.';
+async function handleApiError(response: Response, defaultMessage: string) {
+  const error = await response.json().catch(() => null);
 
-    try {
-      const data = await response.json();
-      message = data.message || data.error || message;
-    } catch {
-      // rien
-    }
+  const message =
+    Array.isArray(error?.message)
+      ? error.message.join(', ')
+      : error?.message || defaultMessage;
 
-    throw new Error(message);
-  }
-
-  return response.json();
+  throw new Error(message);
 }
 
 export async function getStockSorties(): Promise<StockSortie[]> {
@@ -28,29 +24,118 @@ export async function getStockSorties(): Promise<StockSortie[]> {
     cache: 'no-store',
   });
 
-  return handleResponse<StockSortie[]>(response);
+  if (!response.ok) {
+    await handleApiError(response, 'Erreur lors du chargement des sorties.');
+  }
+
+  return response.json();
 }
 
-export async function getStockSortieById(
-  idSortieStock: number,
-): Promise<StockSortie> {
-  const response = await fetch(`${API_URL}/stock/sorties/${idSortieStock}`, {
+export async function getStockSortie(id: number): Promise<StockSortie> {
+  const response = await fetch(`${API_URL}/stock/sorties/${id}`, {
     cache: 'no-store',
   });
 
-  return handleResponse<StockSortie>(response);
+  if (!response.ok) {
+    await handleApiError(response, 'Erreur lors du chargement du bon de sortie.');
+  }
+
+  return response.json();
 }
 
 export async function createStockSortie(
-  dto: CreateStockSortieDto,
-) {
+  data: CreateStockSortieDto,
+): Promise<StockSortie> {
   const response = await fetch(`${API_URL}/stock/sorties`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(dto),
+    body: JSON.stringify(data),
   });
 
-  return handleResponse(response);
+  if (!response.ok) {
+    await handleApiError(response, 'Erreur lors de la création du bon de sortie.');
+  }
+
+  return response.json();
+}
+
+export async function updateStockSortie(
+  id: number,
+  data: UpdateStockSortieDto,
+): Promise<StockSortie> {
+  const response = await fetch(`${API_URL}/stock/sorties/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    await handleApiError(response, 'Erreur lors de la modification du bon de sortie.');
+  }
+
+  return response.json();
+}
+
+export async function addStockSortieLigne(
+  idSortieStock: number,
+  data: LigneSortieStockCrudDto,
+) {
+  const response = await fetch(`${API_URL}/stock/sorties/${idSortieStock}/lignes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    await handleApiError(response, "Erreur lors de l'ajout de la ligne.");
+  }
+
+  return response.json();
+}
+
+export async function updateStockSortieLigne(
+  idSortieStock: number,
+  idLigneSortieStock: number,
+  data: UpdateLigneSortieStockDto,
+) {
+  const response = await fetch(
+    `${API_URL}/stock/sorties/${idSortieStock}/lignes/${idLigneSortieStock}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    },
+  );
+
+  if (!response.ok) {
+    await handleApiError(response, 'Erreur lors de la modification de la ligne.');
+  }
+
+  return response.json();
+}
+
+export async function deleteStockSortieLigne(
+  idSortieStock: number,
+  idLigneSortieStock: number,
+) {
+  const response = await fetch(
+    `${API_URL}/stock/sorties/${idSortieStock}/lignes/${idLigneSortieStock}`,
+    {
+      method: 'DELETE',
+    },
+  );
+
+  if (!response.ok) {
+    await handleApiError(response, 'Erreur lors de la suppression de la ligne.');
+  }
+
+  return response.json();
 }
