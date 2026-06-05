@@ -23,10 +23,20 @@ import { PlanPreventifModule } from './modules/plan-preventif/plan-preventif.mod
 import { HistoriqueDeclenchementPreventifModule } from './modules/historique-declenchement-preventif/historique-declenchement-preventif.module';
 import { InterventionModule } from './modules/intervention/intervention.module'; 
 import { DemandeInterventionModule } from './modules/demande-intervention/demande-intervention.module';
+import { PointMesureModule } from './modules/point-mesure/point-mesure.module';
+import { ReleveMesureModule } from './modules/releve-mesure/releve-mesure.module';
+import { TypeEquipementModule } from './modules/type-equipement/type-equipement.module';
+import { FabricantModule } from './modules/fabricant/fabricant.module';
+import { MarqueModule } from './modules/marque/marque.module';
 @Module({
   imports: [PrismaModule, FamilleModule,ReservationsModule,ModeleModule,EtatModeleModule,ArborescenceModule, PointsStructureModule,UniteArticleModule, ArticleModule,MaterielModule, MagasinModule,InventairesPreparesModule, InventaireModule,StockModule,DemandesTransfertModule, ReapprovisionnementModule,GammeModule,PlanPreventifPredefiniModule,PlanPreventifModule,
     HistoriqueDeclenchementPreventifModule,
     InterventionModule,
+    PointMesureModule,
+    ReleveMesureModule,
+     TypeEquipementModule,
+    FabricantModule,
+    MarqueModule,
     DemandeInterventionModule,],
   controllers: [AppController],
   providers: [AppService],

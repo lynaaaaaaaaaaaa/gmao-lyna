@@ -33,10 +33,18 @@ function filterTree(nodes: ArborescenceNode[], search: string): ArborescenceNode
     .filter(Boolean) as ArborescenceNode[];
 }
 
+function getModeLabel(mode: ArborescenceMode) {
+  if (mode === 'GEOGRAPHIQUE') return 'géographique';
+  if (mode === 'TECHNIQUE') return 'technique';
+  return 'familles';
+}
+
 export default function TreeView({ data, mode }: Props) {
   const [search, setSearch] = useState('');
 
   const filteredData = useMemo(() => filterTree(data, search), [data, search]);
+
+  const modeLabel = getModeLabel(mode);
 
   return (
     <div className="p-5">
@@ -70,10 +78,13 @@ export default function TreeView({ data, mode }: Props) {
           </div>
           <div>
             <h3 className="text-lg font-black text-slate-950">
-              Arborescence {mode === 'GEOGRAPHIQUE' ? 'géographique' : 'technique'}
+              Arborescence {modeLabel}
             </h3>
             <p className="text-sm font-medium text-slate-500">
-              {filteredData.length} point(s) racine affiché(s)
+              {filteredData.length}{' '}
+              {mode === 'FAMILLE'
+                ? 'famille(s) racine affichée(s)'
+                : 'point(s) racine affiché(s)'}
             </p>
           </div>
         </div>

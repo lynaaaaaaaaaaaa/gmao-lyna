@@ -1,20 +1,30 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, Wrench } from 'lucide-react';
+import { Building2, FolderTree, Wrench } from 'lucide-react';
 
 import TreeView from './TreeView';
-import { ArborescenceNode, ArborescenceMode } from '../types/arborescence.types';
+import { ArborescenceMode, ArborescenceNode } from '../types/arborescence.types';
 
 type Props = {
   geographique: ArborescenceNode[];
   technique: ArborescenceNode[];
+  familles: ArborescenceNode[];
 };
 
-export default function ArborescenceTabs({ geographique, technique }: Props) {
+export default function ArborescenceTabs({
+  geographique,
+  technique,
+  familles,
+}: Props) {
   const [mode, setMode] = useState<ArborescenceMode>('GEOGRAPHIQUE');
 
-  const data = mode === 'GEOGRAPHIQUE' ? geographique : technique;
+  const data =
+    mode === 'GEOGRAPHIQUE'
+      ? geographique
+      : mode === 'TECHNIQUE'
+        ? technique
+        : familles;
 
   return (
     <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
@@ -28,10 +38,10 @@ export default function ArborescenceTabs({ geographique, technique }: Props) {
           </h2>
         </div>
 
-        <div className="grid grid-cols-2 rounded-2xl bg-slate-100 p-1">
+        <div className="grid grid-cols-3 rounded-2xl bg-slate-100 p-1">
           <button
             onClick={() => setMode('GEOGRAPHIQUE')}
-            className={`flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition ${
+            className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition ${
               mode === 'GEOGRAPHIQUE'
                 ? 'bg-[#064e5f] text-white shadow-sm'
                 : 'text-slate-500 hover:text-slate-900'
@@ -43,7 +53,7 @@ export default function ArborescenceTabs({ geographique, technique }: Props) {
 
           <button
             onClick={() => setMode('TECHNIQUE')}
-            className={`flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition ${
+            className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition ${
               mode === 'TECHNIQUE'
                 ? 'bg-[#064e5f] text-white shadow-sm'
                 : 'text-slate-500 hover:text-slate-900'
@@ -51,6 +61,18 @@ export default function ArborescenceTabs({ geographique, technique }: Props) {
           >
             <Wrench size={18} />
             Technique
+          </button>
+
+          <button
+            onClick={() => setMode('FAMILLE')}
+            className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition ${
+              mode === 'FAMILLE'
+                ? 'bg-[#064e5f] text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <FolderTree size={18} />
+            Familles
           </button>
         </div>
       </div>

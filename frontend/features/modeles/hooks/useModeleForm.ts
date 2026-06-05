@@ -4,13 +4,21 @@ import { useEffect, useState } from 'react';
 
 import { getFamilles } from '@/features/familles/services/famille.service';
 import type { FamilleApi } from '@/features/familles/types/famille';
+
 import {
   createModele,
   getEtatsModele,
+  getFabricants,
+  getMarques,
+  getTypesEquipement,
 } from '@/features/modeles/services/modele.service';
+
 import type {
+  CreateModelePayload,
+  FabricantApi,
+  MarqueApi,
   ModeleEtat,
-  ModeleFormValues,
+  TypeEquipementApi,
 } from '@/features/modeles/types/modele';
 
 type UseModeleFormOptions = {
@@ -18,17 +26,15 @@ type UseModeleFormOptions = {
 };
 
 export function useModeleForm(options?: UseModeleFormOptions) {
-  const [values, setValues] = useState<ModeleFormValues>({
-    code: '',
-    libelle: '',
-    idFamille: '',
-    idEtat: '',
-  });
-
   const [familles, setFamilles] = useState<FamilleApi[]>([]);
   const [etats, setEtats] = useState<ModeleEtat[]>([]);
-  const [loadingFamilles, setLoadingFamilles] = useState(true);
-  const [loadingEtats, setLoadingEtats] = useState(true);
+  const [typesEquipement, setTypesEquipement] = useState<TypeEquipementApi[]>(
+    [],
+  );
+  const [fabricants, setFabricants] = useState<FabricantApi[]>([]);
+  const [marques, setMarques] = useState<MarqueApi[]>([]);
+
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -36,105 +42,76 @@ export function useModeleForm(options?: UseModeleFormOptions) {
   useEffect(() => {
     async function fetchData() {
       try {
-        setLoadingFamilles(true);
-        setLoadingEtats(true);
+        setLoading(true);
         setError(null);
 
-        const [famillesData, etatsData] = await Promise.all([
+        const [
+          famillesData,
+          etatsData,
+          typesEquipementData,
+          fabricantsData,
+          marquesData,
+        ] = await Promise.all([
           getFamilles(),
           getEtatsModele(),
+          getTypesEquipement(),
+          getFabricants(),
+          getMarques(),
         ]);
 
         setFamilles(famillesData);
         setEtats(etatsData);
+        setTypesEquipement(typesEquipementData);
+        setFabricants(fabricantsData);
+        setMarques(marquesData);
       } catch (err) {
         setError(
           err instanceof Error
             ? err.message
-            : 'Erreur lors du chargement des données.',
+            : 'Erreur lors du chargement des données du formulaire.',
         );
       } finally {
-        setLoadingFamilles(false);
-        setLoadingEtats(false);
+        setLoading(false);
       }
     }
 
     fetchData();
   }, []);
 
-  function setCode(value: string) {
-    setValues((prev) => ({ ...prev, code: value }));
-  }
-
-  function setLibelle(value: string) {
-    setValues((prev) => ({ ...prev, libelle: value }));
-  }
-
-  function setIdFamille(value: string) {
-    setValues((prev) => ({ ...prev, idFamille: value }));
-  }
-
-  function setIdEtat(value: string) {
-    setValues((prev) => ({ ...prev, idEtat: value }));
-  }
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-
-    if (!values.idEtat) {
-      setError("L'état du modèle est obligatoire.");
-      setSuccess(null);
-      return;
-    }
-
+  async function submitModele(payload: CreateModelePayload) {
     try {
       setSaving(true);
       setError(null);
       setSuccess(null);
 
-      await createModele({
-        code: values.code.trim() || undefined,
-        libelle: values.libelle.trim() || undefined,
-        idFamille: values.idFamille ? Number(values.idFamille) : null,
-        idEtat: Number(values.idEtat),
-      });
+      await createModele(payload);
 
       setSuccess('Le modèle a été ajouté avec succès.');
-      setValues({
-        code: '',
-        libelle: '',
-        idFamille: '',
-        idEtat: '',
-      });
-
-      if (options?.onSuccess) {
-        setTimeout(() => {
-          options.onSuccess?.();
-        }, 900);
-      }
+      options?.onSuccess?.();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Erreur lors de l'ajout.",
-      );
+      const message =
+        err instanceof Error ? err.message : "Erreur lors de l'ajout.";
+
+      setError(message);
       setSuccess(null);
+      throw new Error(message);
     } finally {
       setSaving(false);
     }
   }
 
   return {
-    values,
     familles,
     etats,
-    loadingFamilles,
-    loadingEtats,
+    typesEquipement,
+    fabricants,
+    marques,
+
+    loading,
     saving,
     error,
     success,
-    setCode,
-    setLibelle,
-    setIdFamille,
-    setIdEtat,
-    handleSubmit,
+
+    submitModele,
   };
 }

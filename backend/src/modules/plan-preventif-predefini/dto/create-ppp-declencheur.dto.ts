@@ -1,14 +1,17 @@
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
   MaxLength,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreatePppDeclencheurDto {
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   priorite?: number;
 
@@ -19,16 +22,23 @@ export class CreatePppDeclencheurDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(30)
+  @IsIn(['CALENDAIRE', 'COMPTEUR', 'CONDITIONNEL'])
   typeDeclencheur?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   idGamme?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   idModele?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  idPointMesure?: number;
 
   @IsOptional()
   @IsString()
@@ -41,14 +51,17 @@ export class CreatePppDeclencheurDto {
   actualisation?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   horizonJours?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   toleranceJours?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   periodiciteValeur?: number;
 
@@ -58,20 +71,17 @@ export class CreatePppDeclencheurDto {
   periodiciteUnite?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   nombreJoursPremierLancement?: number;
 
   @IsOptional()
   @IsString()
-  @MaxLength(50)
-  mesureCode?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(10)
+  @IsIn(['>=', '<=', '>', '<', '='])
   operateur?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   seuilValeur?: number;
 

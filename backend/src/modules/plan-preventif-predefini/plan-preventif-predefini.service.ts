@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePlanPreventifPredefiniDto } from './dto/create-plan-preventif-predefini.dto';
 import { UpdatePlanPreventifPredefiniDto } from './dto/update-plan-preventif-predefini.dto';
@@ -20,25 +25,13 @@ export class PlanPreventifPredefiniService {
         idModele: dto.idModele ?? null,
         actif: dto.actif ?? true,
       },
-      include: {
-        modele: true,
-        ppp_declencheur: {
-          orderBy: { priorite: 'asc' },
-        },
-        plan_preventif: true,
-      },
+      include: this.defaultPlanInclude(),
     });
   }
 
   async findAll() {
     return this.prisma.plan_preventif_predefini.findMany({
-      include: {
-        modele: true,
-        ppp_declencheur: {
-          orderBy: { priorite: 'asc' },
-        },
-        plan_preventif: true,
-      },
+      include: this.defaultPlanInclude(),
       orderBy: {
         idPlanPreventifPredefini: 'desc',
       },
@@ -48,18 +41,7 @@ export class PlanPreventifPredefiniService {
   async findOne(id: number) {
     const item = await this.prisma.plan_preventif_predefini.findUnique({
       where: { idPlanPreventifPredefini: id },
-      include: {
-        modele: true,
-        ppp_declencheur: {
-          include: {
-            gamme: true,
-            modele: true,
-            plan_preventif_declencheur: true,
-          },
-          orderBy: { priorite: 'asc' },
-        },
-        plan_preventif: true,
-      },
+      include: this.defaultPlanDetailInclude(),
     });
 
     if (!item) {
@@ -89,13 +71,7 @@ export class PlanPreventifPredefiniService {
         ...(dto.idModele !== undefined ? { idModele: dto.idModele } : {}),
         ...(dto.actif !== undefined ? { actif: dto.actif } : {}),
       },
-      include: {
-        modele: true,
-        ppp_declencheur: {
-          orderBy: { priorite: 'asc' },
-        },
-        plan_preventif: true,
-      },
+      include: this.defaultPlanInclude(),
     });
   }
 
@@ -108,137 +84,294 @@ export class PlanPreventifPredefiniService {
   }
 
   async createDeclencheur(
-  idPlanPreventifPredefini: number,
-  dto: CreatePppDeclencheurDto,
-) {
-  await this.ensurePlanExists(idPlanPreventifPredefini);
+    idPlanPreventifPredefini: number,
+    dto: CreatePppDeclencheurDto,
+  ) {
+    await this.ensurePlanExists(idPlanPreventifPredefini);
 
-  if (!dto.idGamme) {
-    throw new NotFoundException(
-      'idGamme est obligatoire pour créer un déclencheur PPP.',
-    );
+    if (!dto.idGamme) {
+      throw new BadRequestException(
+        'La gamme est obligatoire pour créer un déclencheur PPP.',
+      );
+    }
+
+    const typeDeclencheur = dto.typeDeclencheur ?? 'CALENDAIRE';
+
+    await this.validateDeclencheur({
+      typeDeclencheur,
+      idGamme: dto.idGamme,
+      idModele: dto.idModele,
+      idPointMesure: dto.idPointMesure,
+      periodiciteValeur: dto.periodiciteValeur,
+      periodiciteUnite: dto.periodiciteUnite,
+      operateur: dto.operateur,
+      seuilValeur: dto.seuilValeur,
+    });
+
+    const isCalendaire = typeDeclencheur === 'CALENDAIRE';
+    const isMesure =
+      typeDeclencheur === 'COMPTEUR' ||
+      typeDeclencheur === 'CONDITIONNEL';
+
+    return this.prisma.ppp_declencheur.create({
+      data: {
+        idPlanPreventifPredefini,
+        priorite: dto.priorite ?? 1,
+        etat: dto.etat ?? 'ACTIF',
+        typeDeclencheur,
+
+        idGamme: dto.idGamme,
+        idModele: dto.idModele ?? null,
+        idPointMesure: isMesure ? dto.idPointMesure ?? null : null,
+
+        etatInterventionCible: dto.etatInterventionCible ?? 'A_VALIDER',
+        horizonJours: dto.horizonJours ?? null,
+        toleranceJours: dto.toleranceJours ?? null,
+        actualisation: dto.actualisation ?? null,
+
+        periodiciteValeur: isCalendaire
+          ? dto.periodiciteValeur ?? null
+          : null,
+        periodiciteUnite: isCalendaire
+          ? dto.periodiciteUnite ?? null
+          : null,
+        nombreJoursPremierLancement: isCalendaire
+          ? dto.nombreJoursPremierLancement ?? null
+          : null,
+
+        operateur: isMesure ? dto.operateur ?? null : null,
+        seuilValeur:
+          isMesure && dto.seuilValeur !== undefined && dto.seuilValeur !== null
+            ? new Prisma.Decimal(dto.seuilValeur)
+            : null,
+
+        symptomeCode: dto.symptomeCode ?? null,
+        saisonnaliteDu: null,
+        saisonnaliteAu: null,
+        actif: dto.actif ?? true,
+      },
+      include: this.defaultDeclencheurInclude(),
+    });
   }
 
-  return this.prisma.ppp_declencheur.create({
-    data: {
-      idPlanPreventifPredefini,
-      priorite: dto.priorite ?? 1,
-      etat: dto.etat ?? null,
-      typeDeclencheur: dto.typeDeclencheur ?? '',
-      idGamme: dto.idGamme,
-      idModele: dto.idModele ?? null,
-      etatInterventionCible: dto.etatInterventionCible ?? null,
-      horizonJours: dto.horizonJours ?? null,
-      toleranceJours: dto.toleranceJours ?? null,
-      actualisation: dto.actualisation ?? null,
-      periodiciteValeur: dto.periodiciteValeur ?? null,
-      periodiciteUnite: dto.periodiciteUnite ?? null,
-      nombreJoursPremierLancement:
-        dto.nombreJoursPremierLancement ?? null,
-      mesureCode: dto.mesureCode ?? null,
-      seuilValeur:
-        dto.seuilValeur !== undefined && dto.seuilValeur !== null
-          ? dto.seuilValeur
-          : null,
-      operateur: dto.operateur ?? null,
-      symptomeCode: dto.symptomeCode ?? null,
-      saisonnaliteDu: null,
-      saisonnaliteAu: null,
-      actif: dto.actif ?? true,
-    },
-    include: {
-      plan_preventif_predefini: true,
-      gamme: true,
-      modele: true,
-      plan_preventif_declencheur: true,
-    },
-  });
-}
   async findDeclencheursByPlan(idPlanPreventifPredefini: number) {
     await this.ensurePlanExists(idPlanPreventifPredefini);
 
     return this.prisma.ppp_declencheur.findMany({
       where: { idPlanPreventifPredefini },
-      include: {
-        plan_preventif_predefini: true,
-        gamme: true,
-        modele: true,
-        plan_preventif_declencheur: true,
-      },
+      include: this.defaultDeclencheurInclude(),
       orderBy: {
         priorite: 'asc',
       },
     });
   }
 
- async updateDeclencheur(
-  idDeclencheur: number,
-  dto: UpdatePppDeclencheurDto,
-) {
-  await this.ensureDeclencheurExists(idDeclencheur);
+  async updateDeclencheur(
+    idDeclencheur: number,
+    dto: UpdatePppDeclencheurDto,
+  ) {
+    const existing = await this.prisma.ppp_declencheur.findUnique({
+      where: { idPppDeclencheur: idDeclencheur },
+    });
 
-  return this.prisma.ppp_declencheur.update({
-    where: { idPppDeclencheur: idDeclencheur },
-    data: {
-      ...(dto.priorite !== undefined ? { priorite: dto.priorite } : {}),
-      ...(dto.etat !== undefined ? { etat: dto.etat } : {}),
-      ...(dto.typeDeclencheur !== undefined
-        ? { typeDeclencheur: dto.typeDeclencheur }
-        : {}),
-      ...(dto.idGamme !== undefined ? { idGamme: dto.idGamme } : {}),
-      ...(dto.idModele !== undefined ? { idModele: dto.idModele } : {}),
-      ...(dto.etatInterventionCible !== undefined
-        ? { etatInterventionCible: dto.etatInterventionCible }
-        : {}),
-      ...(dto.horizonJours !== undefined
-        ? { horizonJours: dto.horizonJours }
-        : {}),
-      ...(dto.toleranceJours !== undefined
-        ? { toleranceJours: dto.toleranceJours }
-        : {}),
-      ...(dto.actualisation !== undefined
-        ? { actualisation: dto.actualisation }
-        : {}),
-      ...(dto.periodiciteValeur !== undefined
-        ? { periodiciteValeur: dto.periodiciteValeur }
-        : {}),
-      ...(dto.periodiciteUnite !== undefined
-        ? { periodiciteUnite: dto.periodiciteUnite }
-        : {}),
-      ...(dto.nombreJoursPremierLancement !== undefined
-        ? {
-            nombreJoursPremierLancement:
-              dto.nombreJoursPremierLancement,
-          }
-        : {}),
-      ...(dto.mesureCode !== undefined
-        ? { mesureCode: dto.mesureCode }
-        : {}),
-      ...(dto.operateur !== undefined
-        ? { operateur: dto.operateur }
-        : {}),
-      ...(dto.seuilValeur !== undefined
-        ? { seuilValeur: dto.seuilValeur }
-        : {}),
-      ...(dto.symptomeCode !== undefined
-        ? { symptomeCode: dto.symptomeCode }
-        : {}),
-      ...(dto.actif !== undefined ? { actif: dto.actif } : {}),
-    },
-    include: {
-      plan_preventif_predefini: true,
-      gamme: true,
-      modele: true,
-      plan_preventif_declencheur: true,
-    },
-  });
-}
+    if (!existing) {
+      throw new NotFoundException(`Déclencheur PPP ${idDeclencheur} introuvable`);
+    }
+
+    const typeDeclencheur = dto.typeDeclencheur ?? existing.typeDeclencheur;
+
+    const idGamme = dto.idGamme ?? existing.idGamme;
+    const idModele =
+      dto.idModele !== undefined ? dto.idModele : existing.idModele;
+    const idPointMesure =
+      dto.idPointMesure !== undefined
+        ? dto.idPointMesure
+        : existing.idPointMesure;
+
+    const periodiciteValeur =
+      dto.periodiciteValeur !== undefined
+        ? dto.periodiciteValeur
+        : existing.periodiciteValeur;
+
+    const periodiciteUnite =
+      dto.periodiciteUnite !== undefined
+        ? dto.periodiciteUnite
+        : existing.periodiciteUnite;
+
+    const operateur =
+      dto.operateur !== undefined ? dto.operateur : existing.operateur;
+
+    const seuilValeur =
+      dto.seuilValeur !== undefined ? dto.seuilValeur : existing.seuilValeur;
+
+    await this.validateDeclencheur({
+      typeDeclencheur,
+      idGamme,
+      idModele,
+      idPointMesure,
+      periodiciteValeur,
+      periodiciteUnite,
+      operateur,
+      seuilValeur,
+    });
+
+    const isCalendaire = typeDeclencheur === 'CALENDAIRE';
+    const isMesure =
+      typeDeclencheur === 'COMPTEUR' ||
+      typeDeclencheur === 'CONDITIONNEL';
+
+    return this.prisma.ppp_declencheur.update({
+      where: { idPppDeclencheur: idDeclencheur },
+      data: {
+        ...(dto.priorite !== undefined ? { priorite: dto.priorite } : {}),
+        ...(dto.etat !== undefined ? { etat: dto.etat } : {}),
+        typeDeclencheur,
+
+        ...(dto.idGamme !== undefined ? { idGamme: dto.idGamme } : {}),
+        ...(dto.idModele !== undefined ? { idModele: dto.idModele } : {}),
+
+        idPointMesure: isMesure ? idPointMesure : null,
+
+        ...(dto.etatInterventionCible !== undefined
+          ? { etatInterventionCible: dto.etatInterventionCible }
+          : {}),
+        ...(dto.horizonJours !== undefined
+          ? { horizonJours: dto.horizonJours }
+          : {}),
+        ...(dto.toleranceJours !== undefined
+          ? { toleranceJours: dto.toleranceJours }
+          : {}),
+        ...(dto.actualisation !== undefined
+          ? { actualisation: dto.actualisation }
+          : {}),
+
+        periodiciteValeur: isCalendaire ? periodiciteValeur : null,
+        periodiciteUnite: isCalendaire ? periodiciteUnite : null,
+
+        ...(dto.nombreJoursPremierLancement !== undefined
+          ? {
+              nombreJoursPremierLancement: isCalendaire
+                ? dto.nombreJoursPremierLancement
+                : null,
+            }
+          : {}),
+
+        operateur: isMesure ? operateur : null,
+        seuilValeur:
+          isMesure && seuilValeur !== undefined && seuilValeur !== null
+            ? new Prisma.Decimal(seuilValeur)
+            : null,
+
+        ...(dto.symptomeCode !== undefined
+          ? { symptomeCode: dto.symptomeCode }
+          : {}),
+        ...(dto.actif !== undefined ? { actif: dto.actif } : {}),
+      },
+      include: this.defaultDeclencheurInclude(),
+    });
+  }
+
   async removeDeclencheur(idDeclencheur: number) {
     await this.ensureDeclencheurExists(idDeclencheur);
 
     return this.prisma.ppp_declencheur.delete({
       where: { idPppDeclencheur: idDeclencheur },
     });
+  }
+
+  private async validateDeclencheur(data: {
+    typeDeclencheur: string;
+    idGamme?: number | null;
+    idModele?: number | null;
+    idPointMesure?: number | null;
+    periodiciteValeur?: number | null;
+    periodiciteUnite?: string | null;
+    operateur?: string | null;
+    seuilValeur?: number | string | Prisma.Decimal | null;
+  }) {
+    if (!data.idGamme) {
+      throw new BadRequestException('La gamme est obligatoire.');
+    }
+
+    const gamme = await this.prisma.gamme.findUnique({
+      where: { idGamme: data.idGamme },
+      select: { idGamme: true },
+    });
+
+    if (!gamme) {
+      throw new NotFoundException('Gamme introuvable.');
+    }
+
+    if (data.idModele !== undefined && data.idModele !== null) {
+      const modele = await this.prisma.modele.findUnique({
+        where: { idModele: data.idModele },
+        select: { idModele: true },
+      });
+
+      if (!modele) {
+        throw new NotFoundException('Modèle introuvable.');
+      }
+    }
+
+    if (data.typeDeclencheur === 'CALENDAIRE') {
+      if (!data.periodiciteValeur || !data.periodiciteUnite) {
+        throw new BadRequestException(
+          'Un déclencheur calendaire doit avoir une périodicité valeur et une unité.',
+        );
+      }
+
+      return;
+    }
+
+    if (
+      data.typeDeclencheur === 'COMPTEUR' ||
+      data.typeDeclencheur === 'CONDITIONNEL'
+    ) {
+      if (!data.idPointMesure) {
+        throw new BadRequestException(
+          'Un déclencheur compteur ou conditionnel doit avoir un point de mesure.',
+        );
+      }
+
+      if (
+        !data.operateur ||
+        data.seuilValeur === undefined ||
+        data.seuilValeur === null
+      ) {
+        throw new BadRequestException(
+          'Un déclencheur compteur ou conditionnel doit avoir un opérateur et une valeur seuil.',
+        );
+      }
+
+      const pointMesure = await this.prisma.point_mesure.findUnique({
+        where: { idPointMesure: data.idPointMesure },
+        select: {
+          idPointMesure: true,
+          type: true,
+          actif: true,
+        },
+      });
+
+      if (!pointMesure) {
+        throw new NotFoundException('Point de mesure introuvable.');
+      }
+
+      if (pointMesure.actif === false) {
+        throw new BadRequestException(
+          'Impossible d’utiliser un point de mesure inactif.',
+        );
+      }
+
+      if (pointMesure.type !== data.typeDeclencheur) {
+        throw new BadRequestException(
+          `Le point de mesure est de type ${pointMesure.type}, mais le déclencheur est de type ${data.typeDeclencheur}.`,
+        );
+      }
+
+      return;
+    }
+
+    throw new BadRequestException('Type de déclencheur invalide.');
   }
 
   private async ensurePlanExists(id: number) {
@@ -263,5 +396,46 @@ export class PlanPreventifPredefiniService {
     if (!item) {
       throw new NotFoundException(`Déclencheur PPP ${id} introuvable`);
     }
+  }
+
+  private defaultPlanInclude() {
+    return {
+      modele: true,
+      ppp_declencheur: {
+        orderBy: { priorite: 'asc' as const },
+        include: {
+          gamme: true,
+          modele: true,
+          point_mesure: true,
+        },
+      },
+      plan_preventif: true,
+    };
+  }
+
+  private defaultPlanDetailInclude() {
+    return {
+      modele: true,
+      ppp_declencheur: {
+        include: {
+          gamme: true,
+          modele: true,
+          point_mesure: true,
+          plan_preventif_declencheur: true,
+        },
+        orderBy: { priorite: 'asc' as const },
+      },
+      plan_preventif: true,
+    };
+  }
+
+  private defaultDeclencheurInclude() {
+    return {
+      plan_preventif_predefini: true,
+      gamme: true,
+      modele: true,
+      point_mesure: true,
+      plan_preventif_declencheur: true,
+    };
   }
 }

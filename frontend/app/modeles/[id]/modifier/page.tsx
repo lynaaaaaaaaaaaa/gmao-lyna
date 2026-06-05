@@ -1,121 +1,135 @@
 'use client';
 
-import { ChevronLeft } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 import { ModeleForm, useEditModeleForm } from '@/features/modeles';
+import type { UpdateModelePayload } from '@/features/modeles/types/modele';
 
 export default function ModifierModelePage() {
   const router = useRouter();
-  const params = useParams();
-  const id = String(params.id);
+  const params = useParams<{ id: string }>();
+
+  const modeleId = params?.id;
 
   const {
-    values,
+    modele,
     familles,
     etats,
+    typesEquipement,
+    fabricants,
+    marques,
     loading,
-    loadingFamilles,
-    loadingEtats,
-    saving,
     error,
-    success,
-    setCode,
-    setLibelle,
-    setIdFamille,
-    setIdEtat,
-    handleSubmit,
+    submitModele,
   } = useEditModeleForm({
-    modeleId: id,
-    onSuccess: () => router.push(`/modeles/${id}`),
+    modeleId: modeleId || '',
+    onSuccess: () => router.push('/modeles'),
   });
 
-  function handleBack() {
-    router.push(`/modeles/${id}`);
+  if (!modeleId) {
+    return (
+      <main className="min-h-screen bg-[#f5f7fb] px-6 py-8">
+        <div className="mx-auto max-w-[1180px]">
+          <div className="rounded-[24px] border border-red-200 bg-red-50 px-6 py-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-red-600">
+                <AlertCircle className="h-6 w-6" />
+              </div>
+
+              <div>
+                <h1 className="text-lg font-extrabold text-red-700">
+                  Modèle introuvable
+                </h1>
+
+                <p className="mt-1 text-sm font-semibold text-red-600">
+                  L’identifiant du modèle est manquant dans l’URL.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => router.push('/modeles')}
+                  className="mt-4 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-700"
+                >
+                  Retour aux modèles
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   if (loading) {
-    return <div className="p-5">Chargement...</div>;
+    return (
+      <main className="min-h-screen bg-[#f5f7fb] px-6 py-8">
+        <div className="mx-auto flex min-h-[420px] max-w-[1180px] items-center justify-center">
+          <div className="rounded-[24px] border border-slate-200 bg-white px-8 py-7 text-center shadow-sm">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#eef7fa] text-[#06475a]">
+              <Loader2 className="h-7 w-7 animate-spin" />
+            </div>
+
+            <h1 className="mt-4 text-xl font-extrabold text-slate-950">
+              Chargement du modèle
+            </h1>
+
+            <p className="mt-2 text-sm font-medium text-slate-500">
+              Préparation des informations du modèle, des familles, états, types,
+              fabricants et marques.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (error || !modele) {
+    return (
+      <main className="min-h-screen bg-[#f5f7fb] px-6 py-8">
+        <div className="mx-auto max-w-[1180px]">
+          <div className="rounded-[24px] border border-red-200 bg-red-50 px-6 py-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-red-600">
+                <AlertCircle className="h-6 w-6" />
+              </div>
+
+              <div>
+                <h1 className="text-lg font-extrabold text-red-700">
+                  Impossible de charger le modèle
+                </h1>
+
+                <p className="mt-1 text-sm font-semibold text-red-600">
+                  {error || 'Le modèle demandé est introuvable.'}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => router.push('/modeles')}
+                  className="mt-4 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-700"
+                >
+                  Retour aux modèles
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   return (
-    <div
-      className="min-h-full p-5"
-      style={{
-        background: 'linear-gradient(180deg, #F7FAFC 0%, #EEF4F7 100%)',
+    <ModeleForm
+      mode="edit"
+      initialData={modele}
+      familles={familles}
+      etats={etats}
+      typesEquipement={typesEquipement}
+      fabricants={fabricants}
+      marques={marques}
+      onSubmit={async (payload) => {
+        await submitModele(payload as UpdateModelePayload);
       }}
-    >
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <div>
-            <p
-              className="text-[10px] font-semibold uppercase tracking-[0.26em]"
-              style={{ color: '#6E8CA0' }}
-            >
-              BMT · Module équipement
-            </p>
-
-            <div className="mt-2 flex items-center gap-3">
-              <h1
-                className="text-[28px] font-bold leading-tight"
-                style={{ color: '#183B56' }}
-              >
-                Modifier modèle
-              </h1>
-
-              <span
-                className="rounded-full px-3 py-1 text-[12px] font-medium"
-                style={{
-                  backgroundColor: '#EDF3F7',
-                  color: '#48667B',
-                  border: '1px solid #E2EAF0',
-                }}
-              >
-                Mise à jour
-              </span>
-            </div>
-
-            <p className="mt-2 text-[14px]" style={{ color: '#6B8596' }}>
-              Modifiez les informations du modèle sélectionné.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleBack}
-            className="inline-flex h-[42px] items-center gap-2 rounded-[12px] border px-4 text-[13px] font-medium transition hover:bg-slate-50"
-            style={{
-              borderColor: '#E6EDF2',
-              backgroundColor: '#FFFFFF',
-              color: '#183B56',
-            }}
-          >
-            <ChevronLeft size={16} />
-            <span>Retour</span>
-          </button>
-        </div>
-
-        <ModeleForm
-          title="Informations du modèle"
-          subtitle="Modifiez les champs nécessaires avant l’enregistrement."
-          badge="Mise à jour"
-          submitLabel="Enregistrer"
-          values={values}
-          familles={familles}
-          etats={etats}
-          loadingFamilles={loadingFamilles}
-          loadingEtats={loadingEtats}
-          saving={saving}
-          error={error}
-          success={success}
-          onCodeChange={setCode}
-          onLibelleChange={setLibelle}
-          onFamilleChange={setIdFamille}
-          onEtatChange={setIdEtat}
-          onSubmit={handleSubmit}
-          onCancel={handleBack}
-        />
-      </div>
-    </div>
+    />
   );
 }

@@ -1,100 +1,134 @@
 'use client';
 
-import { ChevronLeft } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
+import { ArrowLeft, AlertTriangle, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { ModeleDetailCard, useModeleDetail } from '@/features/modeles';
+import ModeleDetailCard, {
+  type ModeleDetail,
+} from '@/features/modeles/components/modele-detail-card';
 
-export default function DetailModelePage() {
-  const router = useRouter();
+import { getModeleById } from '@/features/modeles/services/modele.service';
+
+export default function ModeleDetailPage() {
   const params = useParams();
-  const id = String(params.id);
+  const router = useRouter();
 
-  const { modele, loading, deleting, error, handleDelete } = useModeleDetail({
-    modeleId: id,
-    onDeleteSuccess: () => router.push('/modeles'),
-  });
+  const id = useMemo(() => {
+    const rawId = params.id;
+    return Number(Array.isArray(rawId) ? rawId[0] : rawId);
+  }, [params.id]);
 
-  function handleBack() {
-    router.push('/modeles');
+  const [modele, setModele] = useState<ModeleDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadModele = useCallback(
+    async (isRefresh = false) => {
+      if (Number.isNaN(id) || id <= 0) {
+        setError('Identifiant du modèle invalide.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        if (isRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
+        setError('');
+
+        const data = await getModeleById(id);
+        setModele(data as ModeleDetail);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Erreur lors du chargement du modèle.',
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [id],
+  );
+
+  useEffect(() => {
+    loadModele();
+  }, [loadModele]);
+
+  if (loading) {
+    return (
+      <main className="min-h-[calc(100vh-96px)] bg-[#f5f7fb] px-5 py-6">
+        <div className="mx-auto flex min-h-[420px] max-w-[1180px] items-center justify-center">
+          <div className="rounded-[24px] border border-slate-200 bg-white px-10 py-8 text-center shadow-sm">
+            <Loader2 className="mx-auto animate-spin text-[#06475a]" size={32} />
+            <p className="mt-4 text-sm font-bold text-slate-500">
+              Chargement du modèle...
+            </p>
+          </div>
+        </div>
+      </main>
+    );
   }
 
-  function handleEdit() {
-    router.push(`/modeles/${id}/modifier`);
+  if (error || !modele) {
+    return (
+      <main className="min-h-[calc(100vh-96px)] bg-[#f5f7fb] px-5 py-6">
+        <section className="mx-auto max-w-[1180px]">
+          <BackButton onClick={() => router.back()} />
+
+          <div className="rounded-[24px] border border-red-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+                <AlertTriangle size={24} />
+              </div>
+
+              <div>
+                <h1 className="text-xl font-extrabold text-slate-950">
+                  Modèle introuvable
+                </h1>
+
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  {error || 'Impossible de charger les informations de ce modèle.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   return (
-    <div
-      className="min-h-full p-5"
-      style={{
-        background: 'linear-gradient(180deg, #F7FAFC 0%, #EEF4F7 100%)',
-      }}
+    <main className="min-h-[calc(100vh-96px)] bg-[#f5f7fb] px-5 py-6">
+      <section className="mx-auto max-w-[1180px]">
+        <BackButton onClick={() => router.back()} />
+
+        <ModeleDetailCard
+          modele={modele}
+          refreshing={refreshing}
+          onRefresh={() => loadModele(true)}
+          onEdit={() => router.push(`/modeles/${modele.idModele}/modifier`)}
+        />
+      </section>
+    </main>
+  );
+}
+
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-900"
     >
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <div>
-            <p
-              className="text-[10px] font-semibold uppercase tracking-[0.26em]"
-              style={{ color: '#6E8CA0' }}
-            >
-              BMT · Module équipement
-            </p>
-
-            <h1
-              className="mt-2 text-[28px] font-bold leading-tight"
-              style={{ color: '#183B56' }}
-            >
-              Détail modèle
-            </h1>
-
-            <p className="mt-2 text-[14px]" style={{ color: '#6B8596' }}>
-              Consultation des informations d’un modèle.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleBack}
-            className="inline-flex h-[42px] items-center gap-2 rounded-[12px] border px-4 text-[13px] font-medium transition hover:bg-slate-50"
-            style={{
-              borderColor: '#E6EDF2',
-              backgroundColor: '#FFFFFF',
-              color: '#183B56',
-            }}
-          >
-            <ChevronLeft size={16} />
-            <span>Retour</span>
-          </button>
-        </div>
-
-        {loading && (
-          <div className="py-6 text-[13px]" style={{ color: '#5F7C90' }}>
-            Chargement...
-          </div>
-        )}
-
-        {error && (
-          <div
-            className="rounded-xl border px-4 py-3 text-[13px]"
-            style={{
-              borderColor: '#E8B4B4',
-              color: '#8A1F1F',
-              backgroundColor: 'rgba(255,255,255,0.9)',
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {!loading && !error && modele && (
-          <ModeleDetailCard
-            modele={modele}
-            deleting={deleting}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        )}
-      </div>
-    </div>
+      <ArrowLeft size={18} />
+      Retour
+    </button>
   );
 }

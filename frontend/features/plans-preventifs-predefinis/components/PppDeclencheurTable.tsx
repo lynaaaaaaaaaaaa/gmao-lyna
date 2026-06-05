@@ -1,4 +1,4 @@
-'use client';
+
 
 import { Pencil, Trash2 } from 'lucide-react';
 
@@ -14,6 +14,47 @@ function display(value?: string | number | boolean | null) {
   if (value === null || value === undefined || value === '') return '-';
   if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
   return String(value);
+}
+
+function displayGamme(item: PppDeclencheur) {
+  if (item.gamme?.code || item.gamme?.libelle) {
+    return `${item.gamme.code ?? ''}${item.gamme.libelle ? ` - ${item.gamme.libelle}` : ''}`;
+  }
+
+  return item.idGamme;
+}
+
+function displayModele(item: PppDeclencheur) {
+  if (item.modele?.code || item.modele?.libelle) {
+    return `${item.modele.code ?? ''}${item.modele.libelle ? ` - ${item.modele.libelle}` : ''}`;
+  }
+
+  return item.idModele;
+}
+
+function displayRegle(item: PppDeclencheur) {
+  if (item.typeDeclencheur === 'CALENDAIRE') {
+    if (item.periodiciteValeur && item.periodiciteUnite) {
+      return `${item.periodiciteValeur} ${item.periodiciteUnite}`;
+    }
+
+    return '-';
+  }
+
+  if (
+    item.typeDeclencheur === 'COMPTEUR' ||
+    item.typeDeclencheur === 'CONDITIONNEL'
+  ) {
+    const point = item.point_mesure
+      ? `${item.point_mesure.code} - ${item.point_mesure.libelle}`
+      : `Point #${item.idPointMesure ?? '-'}`;
+
+    const unite = item.point_mesure?.unite ? ` ${item.point_mesure.unite}` : '';
+
+    return `${point} ${item.operateur ?? ''} ${item.seuilValeur ?? ''}${unite}`;
+  }
+
+  return '-';
 }
 
 export function PppDeclencheurTable({
@@ -35,11 +76,13 @@ export function PppDeclencheurTable({
             <th className="w-[80px] px-4 py-4 md:px-5">ID</th>
             <th className="w-[150px] px-4 py-4 md:px-5">Type</th>
             <th className="w-[90px] px-4 py-4 md:px-5">Priorité</th>
-            <th className="w-[90px] px-4 py-4 md:px-5">Gamme</th>
-            <th className="w-[100px] px-4 py-4 md:px-5">Modèle</th>
-            <th className="w-[120px] px-4 py-4 md:px-5">Périodicité</th>
+            <th className="w-[180px] px-4 py-4 md:px-5">Gamme</th>
+            <th className="w-[150px] px-4 py-4 md:px-5">Modèle</th>
+            <th className="w-[300px] px-4 py-4 md:px-5">Règle</th>
             <th className="w-[90px] px-4 py-4 md:px-5">Actif</th>
-            <th className="w-[120px] px-4 py-4 text-center md:px-5">Actions</th>
+            <th className="w-[120px] px-4 py-4 text-center md:px-5">
+              Actions
+            </th>
           </tr>
         </thead>
 
@@ -64,26 +107,31 @@ export function PppDeclencheurTable({
                 <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
                   {item.idPppDeclencheur}
                 </td>
+
                 <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
                   {display(item.typeDeclencheur)}
                 </td>
+
                 <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
                   {display(item.priorite)}
                 </td>
+
                 <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
-                  {display(item.idGamme)}
+                  {displayGamme(item)}
                 </td>
+
                 <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
-                  {display(item.idModele)}
+                  {displayModele(item)}
                 </td>
+
                 <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
-                  {item.periodiciteValeur && item.periodiciteUnite
-                    ? `${item.periodiciteValeur} ${item.periodiciteUnite}`
-                    : '-'}
+                  {displayRegle(item)}
                 </td>
+
                 <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
                   {display(item.actif)}
                 </td>
+
                 <td className="px-4 py-4 md:px-5">
                   <div className="flex justify-center gap-2">
                     <button

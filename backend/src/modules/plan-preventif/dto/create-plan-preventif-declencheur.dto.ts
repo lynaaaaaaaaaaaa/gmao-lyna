@@ -1,18 +1,23 @@
 import {
   IsBoolean,
+  IsDateString,
+  IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
-  IsNumber,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreatePlanPreventifDeclencheurDto {
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   idPppDeclencheurSource?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   priorite?: number;
 
@@ -23,26 +28,36 @@ export class CreatePlanPreventifDeclencheurDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(30)
+  @IsIn(['CALENDAIRE', 'COMPTEUR', 'CONDITIONNEL'])
   typeDeclencheur?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   idGamme?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   idPointStructure?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   idMateriel?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  idPointMesure?: number;
+
+  @IsOptional()
+  @Type(() => Number)
   @IsInt()
   idModele?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   idFamille?: number;
 
@@ -57,14 +72,17 @@ export class CreatePlanPreventifDeclencheurDto {
   actualisation?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   horizonJours?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   toleranceJours?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   periodiciteValeur?: number;
 
@@ -74,40 +92,39 @@ export class CreatePlanPreventifDeclencheurDto {
   periodiciteUnite?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   prochainLancementDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   derniereRealisationDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   derniereRealisationPrevueDate?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(50)
-  mesureCode?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(10)
+  @IsIn(['>=', '<=', '>', '<', '='])
   operateur?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   seuilValeur?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   prochainLancementValeur?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   derniereRealisationValeur?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   derniereRealisationPrevueValeur?: number;
 
@@ -117,11 +134,11 @@ export class CreatePlanPreventifDeclencheurDto {
   symptomeCode?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   saisonnaliteDu?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   saisonnaliteAu?: string;
 
   @IsOptional()

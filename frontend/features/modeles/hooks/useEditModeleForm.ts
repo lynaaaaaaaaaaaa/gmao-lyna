@@ -4,14 +4,23 @@ import { useEffect, useState } from 'react';
 
 import { getFamilles } from '@/features/familles/services/famille.service';
 import type { FamilleApi } from '@/features/familles/types/famille';
+
 import {
   getEtatsModele,
+  getFabricants,
+  getMarques,
   getModeleById,
+  getTypesEquipement,
   updateModele,
 } from '@/features/modeles/services/modele.service';
+
 import type {
+  FabricantApi,
+  MarqueApi,
+  ModeleApi,
   ModeleEtat,
-  ModeleFormValues,
+  TypeEquipementApi,
+  UpdateModelePayload,
 } from '@/features/modeles/types/modele';
 
 type UseEditModeleFormOptions = {
@@ -23,18 +32,17 @@ export function useEditModeleForm({
   modeleId,
   onSuccess,
 }: UseEditModeleFormOptions) {
-  const [values, setValues] = useState<ModeleFormValues>({
-    code: '',
-    libelle: '',
-    idFamille: '',
-    idEtat: '',
-  });
+  const [modele, setModele] = useState<ModeleApi | null>(null);
 
   const [familles, setFamilles] = useState<FamilleApi[]>([]);
   const [etats, setEtats] = useState<ModeleEtat[]>([]);
+  const [typesEquipement, setTypesEquipement] = useState<TypeEquipementApi[]>(
+    [],
+  );
+  const [fabricants, setFabricants] = useState<FabricantApi[]>([]);
+  const [marques, setMarques] = useState<MarqueApi[]>([]);
+
   const [loading, setLoading] = useState(true);
-  const [loadingFamilles, setLoadingFamilles] = useState(true);
-  const [loadingEtats, setLoadingEtats] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -43,31 +51,34 @@ export function useEditModeleForm({
     async function fetchData() {
       try {
         setLoading(true);
-        setLoadingFamilles(true);
-        setLoadingEtats(true);
         setError(null);
 
-        const [modele, famillesData, etatsData] = await Promise.all([
+        const [
+          modeleData,
+          famillesData,
+          etatsData,
+          typesEquipementData,
+          fabricantsData,
+          marquesData,
+        ] = await Promise.all([
           getModeleById(modeleId),
           getFamilles(),
           getEtatsModele(),
+          getTypesEquipement(),
+          getFabricants(),
+          getMarques(),
         ]);
 
-        setValues({
-          code: modele.code || '',
-          libelle: modele.libelle || '',
-          idFamille: modele.idFamille ? String(modele.idFamille) : '',
-          idEtat: modele.idEtat ? String(modele.idEtat) : '',
-        });
-
+        setModele(modeleData);
         setFamilles(famillesData);
         setEtats(etatsData);
+        setTypesEquipement(typesEquipementData);
+        setFabricants(fabricantsData);
+        setMarques(marquesData);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erreur inconnue');
+        setError(err instanceof Error ? err.message : 'Erreur inconnue.');
       } finally {
         setLoading(false);
-        setLoadingFamilles(false);
-        setLoadingEtats(false);
       }
     }
 
@@ -76,72 +87,43 @@ export function useEditModeleForm({
     }
   }, [modeleId]);
 
-  function setCode(value: string) {
-    setValues((prev) => ({ ...prev, code: value }));
-  }
-
-  function setLibelle(value: string) {
-    setValues((prev) => ({ ...prev, libelle: value }));
-  }
-
-  function setIdFamille(value: string) {
-    setValues((prev) => ({ ...prev, idFamille: value }));
-  }
-
-  function setIdEtat(value: string) {
-    setValues((prev) => ({ ...prev, idEtat: value }));
-  }
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-
-    if (!values.idEtat) {
-      setError("L'état du modèle est obligatoire.");
-      setSuccess(null);
-      return;
-    }
-
+  async function submitModele(payload: UpdateModelePayload) {
     try {
       setSaving(true);
       setError(null);
       setSuccess(null);
 
-      await updateModele(modeleId, {
-        code: values.code.trim() || undefined,
-        libelle: values.libelle.trim() || undefined,
-        idFamille: values.idFamille ? Number(values.idFamille) : null,
-        idEtat: Number(values.idEtat),
-      });
+      const updated = await updateModele(modeleId, payload);
 
+      setModele(updated);
       setSuccess('Le modèle a été modifié avec succès.');
-
-      if (onSuccess) {
-        setTimeout(() => {
-          onSuccess();
-        }, 700);
-      }
+      onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      const message =
+        err instanceof Error ? err.message : 'Erreur lors de la modification.';
+
+      setError(message);
       setSuccess(null);
+      throw new Error(message);
     } finally {
       setSaving(false);
     }
   }
 
   return {
-    values,
+    modele,
+
     familles,
     etats,
+    typesEquipement,
+    fabricants,
+    marques,
+
     loading,
-    loadingFamilles,
-    loadingEtats,
     saving,
     error,
     success,
-    setCode,
-    setLibelle,
-    setIdFamille,
-    setIdEtat,
-    handleSubmit,
+
+    submitModele,
   };
 }

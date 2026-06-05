@@ -1,7 +1,11 @@
-'use client';
 
+
+import { useEffect, useMemo, useState } from 'react';
 import { Eye, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+
+import { getPointsMesure } from '@/features/points-mesure/services/point-mesure.service';
+import type { PointMesure } from '@/features/points-mesure/types/point-mesure.types';
 
 import { useForeignKeyOptions } from '../hooks/useForeignKeyOptions';
 import type { DeclencheurFormValues } from '../types/plan-preventif-predefini.types';
@@ -20,8 +24,7 @@ type PppDeclencheurFormProps = {
 };
 
 const CALENDAIRE_UNITS = ['jour', 'semaine', 'mois', 'annee'];
-const COMPTEUR_UNITS = ['heure', 'km', 'cycle', 'demarrage', 'unite'];
-const OPERATEURS = ['>', '>=', '<', '<=', '=', '!='];
+const OPERATEURS = ['>', '>=', '<', '<=', '='];
 
 export function PppDeclencheurForm({
   values,
@@ -35,13 +38,55 @@ export function PppDeclencheurForm({
   const router = useRouter();
   const { gammes, modeles, loading } = useForeignKeyOptions();
 
+  const [pointsMesure, setPointsMesure] = useState<PointMesure[]>([]);
+  const [pointsLoading, setPointsLoading] = useState(false);
+  const [pointsError, setPointsError] = useState<string | null>(null);
+
   const selectedGammeId =
     values.idGamme && values.idGamme !== '' ? Number(values.idGamme) : null;
 
   const selectedModeleId =
     values.idModele && values.idModele !== '' ? Number(values.idModele) : null;
 
+  const selectedPointMesureId =
+    values.idPointMesure && values.idPointMesure !== ''
+      ? Number(values.idPointMesure)
+      : null;
+
   const type = values.typeDeclencheur || 'CALENDAIRE';
+
+  const isCalendaire = type === 'CALENDAIRE';
+  const isMesure = type === 'COMPTEUR' || type === 'CONDITIONNEL';
+
+  const pointsMesureFiltres = useMemo(() => {
+    if (!isMesure) return [];
+
+    return pointsMesure.filter(
+      (point) => point.actif !== false && point.type === type,
+    );
+  }, [pointsMesure, type, isMesure]);
+
+  useEffect(() => {
+    async function loadPointsMesure() {
+      try {
+        setPointsLoading(true);
+        setPointsError(null);
+
+        const data = await getPointsMesure();
+        setPointsMesure(data);
+      } catch (err) {
+        setPointsError(
+          err instanceof Error
+            ? err.message
+            : 'Erreur lors du chargement des points de mesure.',
+        );
+      } finally {
+        setPointsLoading(false);
+      }
+    }
+
+    loadPointsMesure();
+  }, []);
 
   function handleViewGamme() {
     if (!selectedGammeId) return;
@@ -67,6 +112,29 @@ export function PppDeclencheurForm({
       color: '#183B56',
       backgroundColor: '#FFFFFF',
     } as const;
+  }
+
+  function handleChangeType(nextType: string) {
+    setField('typeDeclencheur', nextType);
+
+    if (nextType === 'CALENDAIRE') {
+      setField('periodiciteUnite', 'jour');
+      setField('idPointMesure', '');
+      setField('operateur', '');
+      setField('seuilValeur', '');
+      setField('symptomeCode', '');
+      return;
+    }
+
+    if (nextType === 'COMPTEUR' || nextType === 'CONDITIONNEL') {
+      setField('periodiciteValeur', '');
+      setField('periodiciteUnite', '');
+      setField('nombreJoursPremierLancement', '');
+      setField('idPointMesure', '');
+      setField('operateur', '>=');
+      setField('seuilValeur', '');
+      return;
+    }
   }
 
   function renderCommonFields() {
@@ -98,25 +166,13 @@ export function PppDeclencheurForm({
           </label>
           <select
             value={values.typeDeclencheur}
-            onChange={(e) => {
-              const nextType = e.target.value;
-              setField('typeDeclencheur', nextType);
-
-              if (nextType === 'CALENDAIRE') {
-                setField('periodiciteUnite', 'jour');
-              } else if (nextType === 'COMPTEUR') {
-                setField('periodiciteUnite', 'heure');
-              } else {
-                setField('periodiciteUnite', '');
-              }
-            }}
+            onChange={(e) => handleChangeType(e.target.value)}
             className="h-[44px] w-full rounded-[14px] border px-4 text-[14px] outline-none"
             style={inputStyle()}
           >
             <option value="CALENDAIRE">CALENDAIRE</option>
             <option value="COMPTEUR">COMPTEUR</option>
             <option value="CONDITIONNEL">CONDITIONNEL</option>
-            <option value="MANUEL">MANUEL</option>
           </select>
         </div>
 
@@ -252,7 +308,7 @@ export function PppDeclencheurForm({
             className="mb-2 block text-[13px] font-medium"
             style={{ color: '#183B56' }}
           >
-            Périodicité valeur
+            Périodicité valeur *
           </label>
           <input
             type="number"
@@ -269,7 +325,7 @@ export function PppDeclencheurForm({
             className="mb-2 block text-[13px] font-medium"
             style={{ color: '#183B56' }}
           >
-            Unité de temps
+            Unité de temps *
           </label>
           <select
             value={values.periodiciteUnite}
@@ -323,63 +379,48 @@ export function PppDeclencheurForm({
     );
   }
 
-  function renderCompteurFields() {
+  function renderMesureFields() {
     return (
       <>
-        <div>
+        <div className="xl:col-span-2">
           <label
             className="mb-2 block text-[13px] font-medium"
             style={{ color: '#183B56' }}
           >
-            Mesure / point compteur
+            Point de mesure *
           </label>
-          <input
-            type="text"
-            value={values.mesureCode}
-            onChange={(e) => setField('mesureCode', e.target.value)}
-            placeholder="Ex: COMPTEUR_H"
-            className="h-[44px] w-full rounded-[14px] border px-4 text-[14px] outline-none"
-            style={inputStyle()}
-          />
-        </div>
 
-        <div>
-          <label
-            className="mb-2 block text-[13px] font-medium"
-            style={{ color: '#183B56' }}
-          >
-            Valeur compteur
-          </label>
-          <input
-            type="number"
-            min="1"
-            value={values.periodiciteValeur}
-            onChange={(e) => setField('periodiciteValeur', e.target.value)}
-            className="h-[44px] w-full rounded-[14px] border px-4 text-[14px] outline-none"
-            style={inputStyle()}
-          />
-        </div>
-
-        <div>
-          <label
-            className="mb-2 block text-[13px] font-medium"
-            style={{ color: '#183B56' }}
-          >
-            Unité compteur
-          </label>
           <select
-            value={values.periodiciteUnite}
-            onChange={(e) => setField('periodiciteUnite', e.target.value)}
+            value={values.idPointMesure}
+            onChange={(e) => setField('idPointMesure', e.target.value)}
             className="h-[44px] w-full rounded-[14px] border px-4 text-[14px] outline-none"
             style={inputStyle()}
           >
-            <option value="">Sélectionner</option>
-            {COMPTEUR_UNITS.map((unit) => (
-              <option key={unit} value={unit}>
-                {unit}
+            <option value="">
+              {pointsLoading
+                ? 'Chargement des points de mesure...'
+                : `Sélectionner un point de mesure ${type.toLowerCase()}`}
+            </option>
+
+            {pointsMesureFiltres.map((point) => (
+              <option key={point.idPointMesure} value={point.idPointMesure}>
+                {point.code} — {point.libelle}
+                {point.unite ? ` (${point.unite})` : ''}
               </option>
             ))}
           </select>
+
+          {pointsError && (
+            <p className="mt-1 text-[12px]" style={{ color: '#C0392B' }}>
+              {pointsError}
+            </p>
+          )}
+
+          {!pointsLoading && pointsMesureFiltres.length === 0 && (
+            <p className="mt-1 text-[12px]" style={{ color: '#8AA0B2' }}>
+              Aucun point de mesure de type {type} trouvé.
+            </p>
+          )}
         </div>
 
         <div>
@@ -387,64 +428,7 @@ export function PppDeclencheurForm({
             className="mb-2 block text-[13px] font-medium"
             style={{ color: '#183B56' }}
           >
-            Horizon
-          </label>
-          <input
-            type="number"
-            min="0"
-            value={values.horizonJours}
-            onChange={(e) => setField('horizonJours', e.target.value)}
-            className="h-[44px] w-full rounded-[14px] border px-4 text-[14px] outline-none"
-            style={inputStyle()}
-          />
-        </div>
-
-        <div>
-          <label
-            className="mb-2 block text-[13px] font-medium"
-            style={{ color: '#183B56' }}
-          >
-            Tolérance
-          </label>
-          <input
-            type="number"
-            min="0"
-            value={values.toleranceJours}
-            onChange={(e) => setField('toleranceJours', e.target.value)}
-            className="h-[44px] w-full rounded-[14px] border px-4 text-[14px] outline-none"
-            style={inputStyle()}
-          />
-        </div>
-      </>
-    );
-  }
-
-  function renderConditionnelFields() {
-    return (
-      <>
-        <div>
-          <label
-            className="mb-2 block text-[13px] font-medium"
-            style={{ color: '#183B56' }}
-          >
-            Mesure / code capteur
-          </label>
-          <input
-            type="text"
-            value={values.mesureCode}
-            onChange={(e) => setField('mesureCode', e.target.value)}
-            placeholder="Ex: TEMP_MOTEUR"
-            className="h-[44px] w-full rounded-[14px] border px-4 text-[14px] outline-none"
-            style={inputStyle()}
-          />
-        </div>
-
-        <div>
-          <label
-            className="mb-2 block text-[13px] font-medium"
-            style={{ color: '#183B56' }}
-          >
-            Opérateur
+            Opérateur *
           </label>
           <select
             value={values.operateur}
@@ -466,13 +450,13 @@ export function PppDeclencheurForm({
             className="mb-2 block text-[13px] font-medium"
             style={{ color: '#183B56' }}
           >
-            Valeur seuil
+            Valeur seuil *
           </label>
           <input
             type="number"
             value={values.seuilValeur}
             onChange={(e) => setField('seuilValeur', e.target.value)}
-            placeholder="Ex: 90"
+            placeholder={type === 'COMPTEUR' ? 'Ex: 250' : 'Ex: 90'}
             className="h-[44px] w-full rounded-[14px] border px-4 text-[14px] outline-none"
             style={inputStyle()}
           />
@@ -483,49 +467,74 @@ export function PppDeclencheurForm({
             className="mb-2 block text-[13px] font-medium"
             style={{ color: '#183B56' }}
           >
-            Symptôme
+            Horizon (jours)
           </label>
           <input
-            type="text"
-            value={values.symptomeCode}
-            onChange={(e) => setField('symptomeCode', e.target.value)}
-            placeholder="Ex: SURCHAUFFE"
+            type="number"
+            min="0"
+            value={values.horizonJours}
+            onChange={(e) => setField('horizonJours', e.target.value)}
             className="h-[44px] w-full rounded-[14px] border px-4 text-[14px] outline-none"
             style={inputStyle()}
           />
         </div>
+
+        <div>
+          <label
+            className="mb-2 block text-[13px] font-medium"
+            style={{ color: '#183B56' }}
+          >
+            Tolérance (jours)
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={values.toleranceJours}
+            onChange={(e) => setField('toleranceJours', e.target.value)}
+            className="h-[44px] w-full rounded-[14px] border px-4 text-[14px] outline-none"
+            style={inputStyle()}
+          />
+        </div>
+
+        {type === 'CONDITIONNEL' && (
+          <div>
+            <label
+              className="mb-2 block text-[13px] font-medium"
+              style={{ color: '#183B56' }}
+            >
+              Symptôme
+            </label>
+            <input
+              type="text"
+              value={values.symptomeCode}
+              onChange={(e) => setField('symptomeCode', e.target.value)}
+              placeholder="Ex: SURCHAUFFE"
+              className="h-[44px] w-full rounded-[14px] border px-4 text-[14px] outline-none"
+              style={inputStyle()}
+            />
+          </div>
+        )}
+
+        {selectedPointMesureId && (
+          <div
+            className="rounded-[14px] border px-4 py-3 text-[13px] xl:col-span-2"
+            style={{
+              borderColor: '#E4EBF0',
+              backgroundColor: '#F9FBFC',
+              color: '#5F7C90',
+            }}
+          >
+            Point sélectionné : #{selectedPointMesureId}
+          </div>
+        )}
       </>
     );
   }
 
-  function renderManuelFields() {
-    return (
-      <div
-        className="rounded-[14px] border px-4 py-4 text-[14px] md:col-span-2 xl:col-span-4"
-        style={{
-          borderColor: '#E4EBF0',
-          backgroundColor: '#F9FBFC',
-          color: '#5F7C90',
-        }}
-      >
-        Ce type ne nécessite pas de paramètres automatiques de périodicité.
-      </div>
-    );
-  }
-
   function renderTypeSpecificFields() {
-    switch (type) {
-      case 'CALENDAIRE':
-        return renderCalendaireFields();
-      case 'COMPTEUR':
-        return renderCompteurFields();
-      case 'CONDITIONNEL':
-        return renderConditionnelFields();
-      case 'MANUEL':
-        return renderManuelFields();
-      default:
-        return null;
-    }
+    if (isCalendaire) return renderCalendaireFields();
+    if (isMesure) return renderMesureFields();
+    return null;
   }
 
   return (

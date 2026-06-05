@@ -6,6 +6,7 @@ import type {
   PlanPreventif,
   PlanPreventifDeclencheur,
   PlanPreventifPredefini,
+  PointMesure,
   UpdatePlanPreventifPayload,
 } from '../types/plan-preventif.types';
 
@@ -28,8 +29,7 @@ async function request<T>(
     const errorBody = await response.json().catch(() => null);
 
     throw new Error(
-      errorBody?.message ||
-        `Erreur API ${response.status} sur ${endpoint}.`,
+      errorBody?.message || `Erreur API ${response.status} sur ${endpoint}.`,
     );
   }
 
@@ -75,7 +75,7 @@ export async function getPlanPreventifDeclencheurs(idPlanPreventif: number) {
 
 export async function getAllPlanPreventifDeclencheurs() {
   return request<PlanPreventifDeclencheur[]>(
-    '/plans-preventifs/declencheurs',
+    '/plans-preventifs/all-declencheurs',
   );
 }
 
@@ -109,6 +109,10 @@ export async function getPlanPreventifsPredefinis() {
 
 export async function getGammesForPlanPreventif() {
   return request<Gamme[]>('/gammes');
+}
+
+export async function getPointsMesureForPlanPreventif() {
+  return request<PointMesure[]>('/points-mesure');
 }
 
 export async function getMaterielsForPlanPreventif() {

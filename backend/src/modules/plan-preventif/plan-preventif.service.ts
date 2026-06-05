@@ -24,15 +24,16 @@ export class PlanPreventifService {
         point_structure: true,
         plan_preventif_predefini: true,
         plan_preventif_declencheur: {
-          include: {
-            gamme: true,
-            materiel: true,
-            point_structure: true,
-            modele: true,
-            famille: true,
-            ppp_declencheur: true,
-          },
-        },
+  include: {
+    gamme: true,
+    materiel: true,
+    point_structure: true,
+    point_mesure: true,
+    modele: true,
+    famille: true,
+    ppp_declencheur: true,
+  },
+},
         intervention: true,
       },
     });
@@ -59,6 +60,7 @@ export class PlanPreventifService {
               include: {
                 gamme: true,
                 modele: true,
+                 point_mesure: true,
               },
             },
           },
@@ -68,6 +70,7 @@ export class PlanPreventifService {
             gamme: true,
             point_structure: true,
             materiel: true,
+             point_mesure: true,
             modele: true,
             famille: true,
             ppp_declencheur: true,
@@ -307,13 +310,22 @@ export class PlanPreventifService {
       where: { idPlanPreventif: id },
     });
 
-    await this.copyDeclencheursFromPpp(
-      plan.idPlanPreventif,
-      plan.plan_preventif_predefini,
-      plan.idMateriel ?? undefined,
-      plan.idPointStructure ?? undefined,
-    );
+    if (!plan.idPlanPreventifPredefiniSource) {
+  throw new NotFoundException(
+    'Aucun plan préventif prédéfini source associé à ce plan.',
+  );
+}
 
+const sourcePpp = await this.getPppSourceWithDeclencheurs(
+  plan.idPlanPreventifPredefiniSource,
+);
+
+await this.copyDeclencheursFromPpp(
+  id,
+  sourcePpp,
+  plan.idMateriel ?? undefined,
+  plan.idPointStructure ?? undefined,
+);
     return this.findOne(id);
   }
 
@@ -337,6 +349,7 @@ export class PlanPreventifService {
         materiel: true,
         point_structure: true,
         modele: true,
+        point_mesure: true,
         famille: true,
         intervention: true,
         historique_declenchement_preventif: true,
@@ -374,6 +387,7 @@ export class PlanPreventifService {
         materiel: true,
         point_structure: true,
         modele: true,
+        point_mesure: true,
         famille: true,
         intervention: true,
         historique_declenchement_preventif: true,
@@ -400,6 +414,7 @@ export class PlanPreventifService {
           },
           materiel: true,
           point_structure: true,
+          point_mesure: true,
         },
       });
 
@@ -512,99 +527,131 @@ export class PlanPreventifService {
     };
   }
 
-  private async copyDeclencheursFromPpp(
-    idPlanPreventif: number,
-    sourcePpp: Awaited<
-      ReturnType<PlanPreventifService['getPppSourceWithDeclencheurs']>
-    >,
-    idMateriel?: number,
-    idPointStructure?: number,
-  ) {
-    for (const declencheur of sourcePpp.ppp_declencheur) {
-      let prochainLancementDate: Date | null = null;
+ private async copyDeclencheursFromPpp(
+  idPlanPreventif: number,
+  sourcePpp: Awaited<
+    ReturnType<PlanPreventifService['getPppSourceWithDeclencheurs']>
+  >,
+  idMateriel?: number,
+  idPointStructure?: number,
+) {
+  for (const declencheur of sourcePpp.ppp_declencheur) {
+    let prochainLancementDate: Date | null = null;
 
-      if (
-        declencheur.typeDeclencheur === 'CALENDAIRE' &&
-        declencheur.nombreJoursPremierLancement !== null &&
-        declencheur.nombreJoursPremierLancement !== undefined
-      ) {
-        const date = new Date();
-        date.setDate(
-          date.getDate() + Number(declencheur.nombreJoursPremierLancement),
-        );
-        prochainLancementDate = date;
-      }
-
-      await this.prisma.plan_preventif_declencheur.create({
-        data: {
-          plan_preventif: {
-            connect: { idPlanPreventif },
-          },
-
-          ...(declencheur.idPppDeclencheur
-            ? {
-                ppp_declencheur: {
-                  connect: { idPppDeclencheur: declencheur.idPppDeclencheur },
-                },
-              }
-            : {}),
-
-          gamme: {
-            connect: { idGamme: declencheur.idGamme },
-          },
-
-          priorite: declencheur.priorite ?? 1,
-          etat: declencheur.etat ?? null,
-          typeDeclencheur: declencheur.typeDeclencheur,
-          etatInterventionCible: declencheur.etatInterventionCible ?? null,
-          actualisation: declencheur.actualisation ?? null,
-          horizonJours: declencheur.horizonJours ?? null,
-          toleranceJours: declencheur.toleranceJours ?? null,
-          periodiciteValeur: declencheur.periodiciteValeur ?? null,
-          periodiciteUnite: declencheur.periodiciteUnite ?? null,
-          prochainLancementDate,
-          mesureCode: declencheur.mesureCode ?? null,
-          operateur: declencheur.operateur ?? null,
-          seuilValeur: declencheur.seuilValeur ?? null,
-          symptomeCode: declencheur.symptomeCode ?? null,
-          saisonnaliteDu: declencheur.saisonnaliteDu ?? null,
-          saisonnaliteAu: declencheur.saisonnaliteAu ?? null,
-          actif: declencheur.actif ?? true,
-
-          ...(idMateriel !== undefined
-            ? {
-                materiel: {
-                  connect: { idMateriel },
-                },
-              }
-            : {}),
-
-          ...(idPointStructure !== undefined
-            ? {
-                point_structure: {
-                  connect: { idPoint: idPointStructure },
-                },
-              }
-            : {}),
-
-          ...(declencheur.idModele !== null && declencheur.idModele !== undefined
-            ? {
-                modele: {
-                  connect: { idModele: declencheur.idModele },
-                },
-              }
-            : {}),
-        },
-      });
+    if (
+      declencheur.typeDeclencheur === 'CALENDAIRE' &&
+      declencheur.nombreJoursPremierLancement !== null &&
+      declencheur.nombreJoursPremierLancement !== undefined
+    ) {
+      const date = new Date();
+      date.setDate(
+        date.getDate() + Number(declencheur.nombreJoursPremierLancement),
+      );
+      prochainLancementDate = date;
     }
+
+    await this.prisma.plan_preventif_declencheur.create({
+      data: {
+        plan_preventif: {
+          connect: { idPlanPreventif },
+        },
+
+        ...(declencheur.idPppDeclencheur
+          ? {
+              ppp_declencheur: {
+                connect: { idPppDeclencheur: declencheur.idPppDeclencheur },
+              },
+            }
+          : {}),
+
+        gamme: {
+          connect: { idGamme: declencheur.idGamme },
+        },
+
+        ...(declencheur.idPointMesure !== null &&
+        declencheur.idPointMesure !== undefined
+          ? {
+              point_mesure: {
+                connect: { idPointMesure: declencheur.idPointMesure },
+              },
+            }
+          : {}),
+
+        priorite: declencheur.priorite ?? 1,
+        etat: declencheur.etat ?? null,
+        typeDeclencheur: declencheur.typeDeclencheur,
+        etatInterventionCible: declencheur.etatInterventionCible ?? null,
+        actualisation: declencheur.actualisation ?? null,
+        horizonJours: declencheur.horizonJours ?? null,
+        toleranceJours: declencheur.toleranceJours ?? null,
+
+        periodiciteValeur:
+          declencheur.typeDeclencheur === 'CALENDAIRE'
+            ? declencheur.periodiciteValeur ?? null
+            : null,
+
+        periodiciteUnite:
+          declencheur.typeDeclencheur === 'CALENDAIRE'
+            ? declencheur.periodiciteUnite ?? null
+            : null,
+
+        prochainLancementDate,
+
+        operateur:
+          declencheur.typeDeclencheur === 'COMPTEUR' ||
+          declencheur.typeDeclencheur === 'CONDITIONNEL'
+            ? declencheur.operateur ?? null
+            : null,
+
+        seuilValeur:
+          declencheur.typeDeclencheur === 'COMPTEUR' ||
+          declencheur.typeDeclencheur === 'CONDITIONNEL'
+            ? declencheur.seuilValeur ?? null
+            : null,
+
+        symptomeCode: declencheur.symptomeCode ?? null,
+        saisonnaliteDu: declencheur.saisonnaliteDu ?? null,
+        saisonnaliteAu: declencheur.saisonnaliteAu ?? null,
+        actif: declencheur.actif ?? true,
+
+        ...(idMateriel !== undefined
+          ? {
+              materiel: {
+                connect: { idMateriel },
+              },
+            }
+          : {}),
+
+        ...(idPointStructure !== undefined
+          ? {
+              point_structure: {
+                connect: { idPoint: idPointStructure },
+              },
+            }
+          : {}),
+
+        ...(declencheur.idModele !== null && declencheur.idModele !== undefined
+          ? {
+              modele: {
+                connect: { idModele: declencheur.idModele },
+              },
+            }
+          : {}),
+      },
+    });
   }
+}
 
   private async getPppSourceWithDeclencheurs(id: number) {
     const ppp = await this.prisma.plan_preventif_predefini.findUnique({
       where: { idPlanPreventifPredefini: id },
       include: {
-        ppp_declencheur: true,
-      },
+  ppp_declencheur: {
+    include: {
+      point_mesure: true,
+    },
+  },
+},
     });
 
     if (!ppp) {

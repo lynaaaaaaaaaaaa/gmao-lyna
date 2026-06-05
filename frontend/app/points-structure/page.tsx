@@ -232,6 +232,14 @@ export default function PointsStructurePage() {
     { label: 'Tous', value: 'all' },
   ]}
 />
+<button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+            >
+              <RefreshCcw size={17} />
+              Réinitialiser
+            </button>
 
             
           </div>

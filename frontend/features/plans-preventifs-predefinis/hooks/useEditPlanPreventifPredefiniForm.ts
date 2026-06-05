@@ -45,13 +45,13 @@ const initialDeclencheurValues: DeclencheurFormValues = {
   typeDeclencheur: 'CALENDAIRE',
   idGamme: '',
   idModele: '',
+  idPointMesure: '',
   horizonJours: '',
   toleranceJours: '',
   periodiciteValeur: '',
   periodiciteUnite: 'jour',
   actif: true,
   nombreJoursPremierLancement: '',
-  mesureCode: '',
   operateur: '',
   seuilValeur: '',
   symptomeCode: '',
@@ -70,11 +70,12 @@ export function useEditPlanPreventifPredefiniForm(
 
   const [declencheurValues, setDeclencheurValues] =
     useState<DeclencheurFormValues>(initialDeclencheurValues);
+
   const [declencheurSaving, setDeclencheurSaving] = useState(false);
   const [declencheurError, setDeclencheurError] = useState<string | null>(null);
-  const [editingDeclencheurId, setEditingDeclencheurId] = useState<number | null>(
-    null,
-  );
+  const [editingDeclencheurId, setEditingDeclencheurId] = useState<
+    number | null
+  >(null);
 
   const id = options?.id;
 
@@ -113,6 +114,11 @@ export function useEditPlanPreventifPredefiniForm(
         declencheur.idModele !== null && declencheur.idModele !== undefined
           ? String(declencheur.idModele)
           : '',
+      idPointMesure:
+        declencheur.idPointMesure !== null &&
+        declencheur.idPointMesure !== undefined
+          ? String(declencheur.idPointMesure)
+          : '',
       horizonJours:
         declencheur.horizonJours !== null &&
         declencheur.horizonJours !== undefined
@@ -135,10 +141,10 @@ export function useEditPlanPreventifPredefiniForm(
         declencheur.nombreJoursPremierLancement !== undefined
           ? String(declencheur.nombreJoursPremierLancement)
           : '',
-      mesureCode: declencheur.mesureCode ?? '',
       operateur: declencheur.operateur ?? '',
       seuilValeur:
-        declencheur.seuilValeur !== null && declencheur.seuilValeur !== undefined
+        declencheur.seuilValeur !== null &&
+        declencheur.seuilValeur !== undefined
           ? String(declencheur.seuilValeur)
           : '',
       symptomeCode: declencheur.symptomeCode ?? '',
@@ -248,6 +254,43 @@ export function useEditPlanPreventifPredefiniForm(
       return;
     }
 
+    const typeDeclencheur =
+      declencheurValues.typeDeclencheur || 'CALENDAIRE';
+
+    const isCalendaire = typeDeclencheur === 'CALENDAIRE';
+
+    const isMesure =
+      typeDeclencheur === 'COMPTEUR' ||
+      typeDeclencheur === 'CONDITIONNEL';
+
+    if (isCalendaire) {
+      if (
+        !declencheurValues.periodiciteValeur ||
+        !declencheurValues.periodiciteUnite
+      ) {
+        setDeclencheurError(
+          'Pour un déclencheur calendaire, la périodicité et son unité sont obligatoires.',
+        );
+        return;
+      }
+    }
+
+    if (isMesure) {
+      if (!declencheurValues.idPointMesure) {
+        setDeclencheurError(
+          'Pour un déclencheur compteur ou conditionnel, le point de mesure est obligatoire.',
+        );
+        return;
+      }
+
+      if (!declencheurValues.operateur || !declencheurValues.seuilValeur) {
+        setDeclencheurError(
+          'Pour un déclencheur compteur ou conditionnel, l’opérateur et la valeur seuil sont obligatoires.',
+        );
+        return;
+      }
+    }
+
     try {
       setDeclencheurSaving(true);
       setDeclencheurError(null);
@@ -256,31 +299,51 @@ export function useEditPlanPreventifPredefiniForm(
         priorite: declencheurValues.priorite
           ? Number(declencheurValues.priorite)
           : undefined,
-        typeDeclencheur: declencheurValues.typeDeclencheur || undefined,
+
+        typeDeclencheur,
+
         idGamme: Number(declencheurValues.idGamme),
+
         idModele: declencheurValues.idModele
           ? Number(declencheurValues.idModele)
-          : undefined,
+          : null,
+
         horizonJours: declencheurValues.horizonJours
           ? Number(declencheurValues.horizonJours)
-          : undefined,
+          : null,
+
         toleranceJours: declencheurValues.toleranceJours
           ? Number(declencheurValues.toleranceJours)
-          : undefined,
-        periodiciteValeur: declencheurValues.periodiciteValeur
+          : null,
+
+        periodiciteValeur: isCalendaire
           ? Number(declencheurValues.periodiciteValeur)
-          : undefined,
-        periodiciteUnite: declencheurValues.periodiciteUnite || undefined,
+          : null,
+
+        periodiciteUnite: isCalendaire
+          ? declencheurValues.periodiciteUnite
+          : null,
+
         nombreJoursPremierLancement:
-          declencheurValues.nombreJoursPremierLancement
+          isCalendaire && declencheurValues.nombreJoursPremierLancement
             ? Number(declencheurValues.nombreJoursPremierLancement)
-            : undefined,
-        mesureCode: declencheurValues.mesureCode || undefined,
-        operateur: declencheurValues.operateur || undefined,
-        seuilValeur: declencheurValues.seuilValeur
+            : null,
+
+        idPointMesure: isMesure
+          ? Number(declencheurValues.idPointMesure)
+          : null,
+
+        operateur: isMesure ? declencheurValues.operateur : null,
+
+        seuilValeur: isMesure
           ? Number(declencheurValues.seuilValeur)
-          : undefined,
-        symptomeCode: declencheurValues.symptomeCode || undefined,
+          : null,
+
+        symptomeCode:
+          typeDeclencheur === 'CONDITIONNEL' && declencheurValues.symptomeCode
+            ? declencheurValues.symptomeCode.trim()
+            : undefined,
+
         actif: declencheurValues.actif,
       };
 

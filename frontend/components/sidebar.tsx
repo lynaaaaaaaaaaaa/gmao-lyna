@@ -37,11 +37,11 @@ const menuStructure: MenuModule[] = [
     icon: Wrench,
     submenu: [
       { label: 'Parc Dequipement' , href: '/arborescences' },
-      { label: 'Familles', href: '/familles' },
       { label: 'Modèles', href: '/modeles' },
       { label: 'Matériels', href: '/materiels' },
-      {label: 'Points de structure', href: '/points-structure',
-}
+      {label: 'Points de structure', href: '/points-structure'},
+       {label: 'Points de mesure', href: '/points-mesure/nouveau'},
+
     ],
   },
   {
