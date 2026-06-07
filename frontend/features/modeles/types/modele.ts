@@ -61,6 +61,8 @@ export type ModeleApi = {
   type_equipement?: TypeEquipementApi | null;
   fabricant?: FabricantApi | null;
   marque?: MarqueApi | null;
+
+  modele_plan_preventif_predefini?: ModelePppAssociationApi[];
 };
 
 export type CreateModelePayload = {
@@ -77,6 +79,9 @@ export type CreateModelePayload = {
   commentaire?: string | null;
   dureeVie?: number | null;
   budget?: number | null;
+
+  pppIds?: number[];
+pppPrincipalId?: number | null;
 };
 
 export type UpdateModelePayload = Partial<CreateModelePayload>;
@@ -92,4 +97,20 @@ export type ModeleFormValues = {
   commentaire: string;
   dureeVie: string;
   budget: string;
+};
+export type PlanPreventifPredefiniApi = {
+  idPlanPreventifPredefini: number;
+  code: string | null;
+  libelle: string | null;
+  description?: string | null;
+  actif?: boolean;
+};
+
+export type ModelePppAssociationApi = {
+  idModelePlanPreventifPredefini: number;
+  idModele: number;
+  idPlanPreventifPredefini: number;
+  principal: boolean;
+  actif: boolean;
+  plan_preventif_predefini?: PlanPreventifPredefiniApi | null;
 };

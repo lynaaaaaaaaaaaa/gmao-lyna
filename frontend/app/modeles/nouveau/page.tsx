@@ -15,12 +15,11 @@ export default function NouveauModelePage() {
     typesEquipement,
     fabricants,
     marques,
+    plansPreventifsPredefinis,
     loading,
     error,
     submitModele,
-  } = useModeleForm({
-    onSuccess: () => router.push('/modeles'),
-  });
+  } = useModeleForm();
 
   if (loading) {
     return (
@@ -36,7 +35,8 @@ export default function NouveauModelePage() {
             </h1>
 
             <p className="mt-2 text-sm font-medium text-slate-500">
-              Préparation des familles, états, types d’équipement, fabricants et marques.
+              Préparation des familles, états, types d’équipement, fabricants,
+              marques et plans préventifs prédéfinis.
             </p>
           </div>
         </div>
@@ -86,6 +86,7 @@ export default function NouveauModelePage() {
       typesEquipement={typesEquipement}
       fabricants={fabricants}
       marques={marques}
+      plansPreventifsPredefinis={plansPreventifsPredefinis}
       onSubmit={async (payload) => {
         await submitModele(payload as CreateModelePayload);
       }}

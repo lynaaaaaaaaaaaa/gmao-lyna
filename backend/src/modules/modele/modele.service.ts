@@ -20,6 +20,15 @@ export class ModeleService {
         type_equipement: true,
         fabricant: true,
         marque: true,
+        modele_plan_preventif_predefini: {
+          include: {
+            plan_preventif_predefini: true,
+          },
+          orderBy: [
+            { principal: 'desc' },
+            { idModelePlanPreventifPredefini: 'asc' },
+          ],
+        },
       },
       orderBy: {
         idModele: 'desc',
@@ -27,28 +36,43 @@ export class ModeleService {
     });
   }
 
-  async findOne(idModele: number) {
-    const modele = await this.prisma.modele.findUnique({
-      where: { idModele },
-      include: {
-        famille: true,
-        etat_modele: true,
-        type_equipement: true,
-        fabricant: true,
-        marque: true,
-        gamme: true,
-        materiel: true,
-        articles: true,
-        plan_preventif_predefini: true,
+ async findOne(idModele: number) {
+  const modele = await this.prisma.modele.findUnique({
+    where: { idModele },
+    include: {
+      famille: true,
+      etat_modele: true,
+      type_equipement: true,
+      fabricant: true,
+      marque: true,
+      gamme: true,
+      materiel: true,
+      articles: true,
+
+      plan_preventif_predefini: {
+        orderBy: {
+          idPlanPreventifPredefini: 'desc',
+        },
       },
-    });
 
-    if (!modele) {
-      throw new NotFoundException('Modèle introuvable.');
-    }
+      modele_plan_preventif_predefini: {
+        include: {
+          plan_preventif_predefini: true,
+        },
+        orderBy: [
+          { principal: 'desc' },
+          { idModelePlanPreventifPredefini: 'asc' },
+        ],
+      },
+    },
+  });
 
-    return modele;
+  if (!modele) {
+    throw new NotFoundException('Modèle introuvable.');
   }
+
+  return modele;
+}
 
   async create(createModeleDto: CreateModeleDto) {
     const code = this.cleanText(createModeleDto.code);
@@ -71,28 +95,62 @@ export class ModeleService {
     await this.validateFabricant(createModeleDto.idFabricant);
     await this.validateMarque(createModeleDto.idMarque);
 
-    return this.prisma.modele.create({
-      data: {
-        code,
-        libelle,
-        idFamille: createModeleDto.idFamille ?? null,
-        idEtat: createModeleDto.idEtat,
+    const pppIds = this.normalizePppIds(createModeleDto.pppIds);
+    const pppPrincipalId = this.resolvePrincipalPppId(
+      pppIds,
+      createModeleDto.pppPrincipalId,
+    );
 
-        idTypeEquipement: createModeleDto.idTypeEquipement ?? null,
-        idFabricant: createModeleDto.idFabricant ?? null,
-        idMarque: createModeleDto.idMarque ?? null,
+    await this.validatePppIds(pppIds);
 
-        commentaire,
-        dureeVie: createModeleDto.dureeVie ?? null,
-        budget: createModeleDto.budget ?? null,
-      },
-      include: {
-        famille: true,
-        etat_modele: true,
-        type_equipement: true,
-        fabricant: true,
-        marque: true,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const createdModele = await tx.modele.create({
+        data: {
+          code,
+          libelle,
+          idFamille: createModeleDto.idFamille ?? null,
+          idEtat: createModeleDto.idEtat,
+
+          idTypeEquipement: createModeleDto.idTypeEquipement ?? null,
+          idFabricant: createModeleDto.idFabricant ?? null,
+          idMarque: createModeleDto.idMarque ?? null,
+
+          commentaire,
+          dureeVie: createModeleDto.dureeVie ?? null,
+          budget: createModeleDto.budget ?? null,
+        },
+      });
+
+      if (pppIds.length > 0) {
+        await tx.modele_plan_preventif_predefini.createMany({
+          data: pppIds.map((idPlanPreventifPredefini) => ({
+            idModele: createdModele.idModele,
+            idPlanPreventifPredefini,
+            principal: idPlanPreventifPredefini === pppPrincipalId,
+            actif: true,
+          })),
+        });
+      }
+
+      return tx.modele.findUnique({
+        where: { idModele: createdModele.idModele },
+        include: {
+          famille: true,
+          etat_modele: true,
+          type_equipement: true,
+          fabricant: true,
+          marque: true,
+          modele_plan_preventif_predefini: {
+            include: {
+              plan_preventif_predefini: true,
+            },
+            orderBy: [
+              { principal: 'desc' },
+              { idModelePlanPreventifPredefini: 'asc' },
+            ],
+          },
+        },
+      });
     });
   }
 
@@ -155,30 +213,76 @@ export class ModeleService {
       await this.validateMarque(updateModeleDto.idMarque);
     }
 
-    return this.prisma.modele.update({
-      where: { idModele },
-      data: {
-        code,
-        libelle,
+    const shouldUpdatePpp = updateModeleDto.pppIds !== undefined;
 
-        idFamille: updateModeleDto.idFamille,
-        idEtat: updateModeleDto.idEtat,
+    const pppIds = shouldUpdatePpp
+      ? this.normalizePppIds(updateModeleDto.pppIds)
+      : [];
 
-        idTypeEquipement: updateModeleDto.idTypeEquipement,
-        idFabricant: updateModeleDto.idFabricant,
-        idMarque: updateModeleDto.idMarque,
+    const pppPrincipalId = shouldUpdatePpp
+      ? this.resolvePrincipalPppId(pppIds, updateModeleDto.pppPrincipalId)
+      : null;
 
-        commentaire,
-        dureeVie: updateModeleDto.dureeVie,
-        budget: updateModeleDto.budget,
-      },
-      include: {
-        famille: true,
-        etat_modele: true,
-        type_equipement: true,
-        fabricant: true,
-        marque: true,
-      },
+    if (shouldUpdatePpp) {
+      await this.validatePppIds(pppIds);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.modele.update({
+        where: { idModele },
+        data: {
+          code,
+          libelle,
+
+          idFamille: updateModeleDto.idFamille,
+          idEtat: updateModeleDto.idEtat,
+
+          idTypeEquipement: updateModeleDto.idTypeEquipement,
+          idFabricant: updateModeleDto.idFabricant,
+          idMarque: updateModeleDto.idMarque,
+
+          commentaire,
+          dureeVie: updateModeleDto.dureeVie,
+          budget: updateModeleDto.budget,
+        },
+      });
+
+      if (shouldUpdatePpp) {
+        await tx.modele_plan_preventif_predefini.deleteMany({
+          where: { idModele },
+        });
+
+        if (pppIds.length > 0) {
+          await tx.modele_plan_preventif_predefini.createMany({
+            data: pppIds.map((idPlanPreventifPredefini) => ({
+              idModele,
+              idPlanPreventifPredefini,
+              principal: idPlanPreventifPredefini === pppPrincipalId,
+              actif: true,
+            })),
+          });
+        }
+      }
+
+      return tx.modele.findUnique({
+        where: { idModele },
+        include: {
+          famille: true,
+          etat_modele: true,
+          type_equipement: true,
+          fabricant: true,
+          marque: true,
+          modele_plan_preventif_predefini: {
+            include: {
+              plan_preventif_predefini: true,
+            },
+            orderBy: [
+              { principal: 'desc' },
+              { idModelePlanPreventifPredefini: 'asc' },
+            ],
+          },
+        },
+      });
     });
   }
 
@@ -193,7 +297,6 @@ export class ModeleService {
             materiel: true,
             articles: true,
             plan_preventif_declencheur: true,
-            plan_preventif_predefini: true,
             ppp_declencheur: true,
           },
         },
@@ -210,7 +313,6 @@ export class ModeleService {
       existingModele._count.materiel > 0 ||
       existingModele._count.articles > 0 ||
       existingModele._count.plan_preventif_declencheur > 0 ||
-      existingModele._count.plan_preventif_predefini > 0 ||
       existingModele._count.ppp_declencheur > 0;
 
     if (isUsed) {
@@ -225,13 +327,81 @@ export class ModeleService {
   }
 
   private cleanText(value?: string | null) {
-    if (value === undefined || value === null) {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (value === null) {
       return null;
     }
 
     const cleaned = value.trim();
 
     return cleaned.length > 0 ? cleaned : null;
+  }
+
+  private normalizePppIds(pppIds?: number[] | null) {
+    if (!pppIds || pppIds.length === 0) {
+      return [];
+    }
+
+    return Array.from(
+      new Set(
+        pppIds
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0),
+      ),
+    );
+  }
+
+  private resolvePrincipalPppId(
+    pppIds: number[],
+    pppPrincipalId?: number | null,
+  ) {
+    if (pppIds.length === 0) {
+      if (pppPrincipalId) {
+        throw new BadRequestException(
+          'Impossible de définir un PPP principal sans sélectionner de PPP.',
+        );
+      }
+
+      return null;
+    }
+
+    if (pppPrincipalId !== undefined && pppPrincipalId !== null) {
+      if (!pppIds.includes(Number(pppPrincipalId))) {
+        throw new BadRequestException(
+          'Le PPP principal doit faire partie des PPP sélectionnés.',
+        );
+      }
+
+      return Number(pppPrincipalId);
+    }
+
+    return pppIds[0];
+  }
+
+  private async validatePppIds(pppIds: number[]) {
+    if (pppIds.length === 0) {
+      return;
+    }
+
+    const existingPpp = await this.prisma.plan_preventif_predefini.findMany({
+      where: {
+        idPlanPreventifPredefini: {
+          in: pppIds,
+        },
+      },
+      select: {
+        idPlanPreventifPredefini: true,
+      },
+    });
+
+    if (existingPpp.length !== pppIds.length) {
+      throw new BadRequestException(
+        'Un ou plusieurs plans préventifs prédéfinis sont introuvables.',
+      );
+    }
   }
 
   private async validateFamille(idFamille?: number | null) {

@@ -67,6 +67,7 @@ export default function ModeleDetailPage() {
         <div className="mx-auto flex min-h-[420px] max-w-[1180px] items-center justify-center">
           <div className="rounded-[24px] border border-slate-200 bg-white px-10 py-8 text-center shadow-sm">
             <Loader2 className="mx-auto animate-spin text-[#06475a]" size={32} />
+
             <p className="mt-4 text-sm font-bold text-slate-500">
               Chargement du modèle...
             </p>
@@ -96,6 +97,14 @@ export default function ModeleDetailPage() {
                 <p className="mt-1 text-sm font-semibold text-slate-500">
                   {error || 'Impossible de charger les informations de ce modèle.'}
                 </p>
+
+                <button
+                  type="button"
+                  onClick={() => router.push('/modeles')}
+                  className="mt-4 rounded-2xl bg-[#06475a] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#043747]"
+                >
+                  Retour aux modèles
+                </button>
               </div>
             </div>
           </div>
@@ -108,6 +117,12 @@ export default function ModeleDetailPage() {
     <main className="min-h-[calc(100vh-96px)] bg-[#f5f7fb] px-5 py-6">
       <section className="mx-auto max-w-[1180px]">
         <BackButton onClick={() => router.back()} />
+
+        {error && (
+          <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
+            {error}
+          </div>
+        )}
 
         <ModeleDetailCard
           modele={modele}
@@ -125,7 +140,7 @@ function BackButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-900"
+      className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-950"
     >
       <ArrowLeft size={18} />
       Retour

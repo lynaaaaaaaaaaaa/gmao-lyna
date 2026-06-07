@@ -1,6 +1,5 @@
 import {
   Boxes,
-  Building2,
   CalendarClock,
   Factory,
   Info as InfoIcon,
@@ -8,7 +7,6 @@ import {
   Package,
   Pencil,
   RefreshCcw,
-  Tag,
   Wrench,
 } from 'lucide-react';
 
@@ -21,11 +19,31 @@ type MaterielLite = {
   actif?: boolean | null;
 };
 
-export type ModeleDetail = ModeleApi & {
+type PlanPreventifPredefiniLite = {
+  idPlanPreventifPredefini: number;
+  code?: string | null;
+  libelle?: string | null;
+  description?: string | null;
+  actif?: boolean | null;
+};
+
+type ModelePppAssociationLite = {
+  idModelePlanPreventifPredefini?: number;
+  idPlanPreventifPredefini: number;
+  principal?: boolean | null;
+  actif?: boolean | null;
+  plan_preventif_predefini?: PlanPreventifPredefiniLite | null;
+};
+
+export type ModeleDetail = Omit<
+  ModeleApi,
+  'modele_plan_preventif_predefini'
+> & {
   materiel?: MaterielLite[];
   gamme?: unknown[];
   articles?: unknown[];
-  plan_preventif_predefini?: unknown[];
+  plan_preventif_predefini?: PlanPreventifPredefiniLite[];
+  modele_plan_preventif_predefini?: ModelePppAssociationLite[];
 };
 
 type Props = {
@@ -75,7 +93,11 @@ export default function ModeleDetailCard({
   const nbMateriels = modele.materiel?.length ?? 0;
   const nbGammes = modele.gamme?.length ?? 0;
   const nbArticles = modele.articles?.length ?? 0;
-  const nbPpp = modele.plan_preventif_predefini?.length ?? 0;
+
+  const pppAssociations = modele.modele_plan_preventif_predefini ?? [];
+  const legacyPpp = modele.plan_preventif_predefini ?? [];
+  const nbPpp =
+    pppAssociations.length > 0 ? pppAssociations.length : legacyPpp.length;
 
   return (
     <>
@@ -156,6 +178,75 @@ export default function ModeleDetailCard({
             </InfoGrid>
           </Card>
 
+          <Card title="Plans préventifs prédéfinis" icon={<CalendarClock size={19} />}>
+            {pppAssociations.length === 0 && legacyPpp.length === 0 ? (
+              <div className="rounded-2xl bg-slate-50 px-4 py-5 text-center text-sm font-semibold text-slate-500">
+                Aucun plan préventif prédéfini associé à ce modèle.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {pppAssociations.length > 0
+                  ? pppAssociations.map((association) => {
+                      const ppp = association.plan_preventif_predefini;
+                      const id = association.idPlanPreventifPredefini;
+
+                      return (
+                        <div
+                          key={
+                            association.idModelePlanPreventifPredefini ??
+                            association.idPlanPreventifPredefini
+                          }
+                          className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3"
+                        >
+                          <div>
+                            <p className="font-black text-slate-900">
+                              {ppp?.code || `PPP-${id}`}
+                            </p>
+
+                            <p className="text-sm text-slate-500">
+                              {ppp?.libelle ||
+                                'Plan préventif prédéfini sans libellé'}
+                            </p>
+                          </div>
+
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-bold ${
+                              association.principal
+                                ? 'bg-[#06475a] text-white'
+                                : 'bg-blue-50 text-blue-700'
+                            }`}
+                          >
+                            {association.principal ? 'Principal' : 'Associé'}
+                          </span>
+                        </div>
+                      );
+                    })
+                  : legacyPpp.map((ppp) => (
+                      <div
+                        key={ppp.idPlanPreventifPredefini}
+                        className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3"
+                      >
+                        <div>
+                          <p className="font-black text-slate-900">
+                            {ppp.code ||
+                              `PPP-${ppp.idPlanPreventifPredefini}`}
+                          </p>
+
+                          <p className="text-sm text-slate-500">
+                            {ppp.libelle ||
+                              'Plan préventif prédéfini sans libellé'}
+                          </p>
+                        </div>
+
+                        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                          Associé
+                        </span>
+                      </div>
+                    ))}
+              </div>
+            )}
+          </Card>
+
           <Card title="Matériels rattachés" icon={<Package size={19} />}>
             <div className="mb-4 flex items-center justify-between">
               <div>
@@ -222,7 +313,12 @@ export default function ModeleDetailCard({
             <SideInfo label="BUDGET" value={formatBudget(modele.budget)} />
           </Card>
 
-         
+          <Card title="Synthèse" icon={<InfoIcon size={19} />}>
+            <SideInfo label="MATÉRIELS" value={String(nbMateriels)} />
+            <SideInfo label="GAMMES" value={String(nbGammes)} />
+            <SideInfo label="ARTICLES" value={String(nbArticles)} />
+            <SideInfo label="PPP ASSOCIÉS" value={String(nbPpp)} />
+          </Card>
         </div>
       </div>
     </>

@@ -11,6 +11,7 @@ import {
   getFabricants,
   getMarques,
   getTypesEquipement,
+  getPlansPreventifsPredefinis,
 } from '@/features/modeles/services/modele.service';
 
 import type {
@@ -19,6 +20,7 @@ import type {
   MarqueApi,
   ModeleEtat,
   TypeEquipementApi,
+  PlanPreventifPredefiniApi,
 } from '@/features/modeles/types/modele';
 
 type UseModeleFormOptions = {
@@ -38,6 +40,9 @@ export function useModeleForm(options?: UseModeleFormOptions) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [plansPreventifsPredefinis, setPlansPreventifsPredefinis] = useState<
+  PlanPreventifPredefiniApi[]
+>([]);
 
   useEffect(() => {
     async function fetchData() {
@@ -46,24 +51,27 @@ export function useModeleForm(options?: UseModeleFormOptions) {
         setError(null);
 
         const [
-          famillesData,
-          etatsData,
-          typesEquipementData,
-          fabricantsData,
-          marquesData,
-        ] = await Promise.all([
-          getFamilles(),
-          getEtatsModele(),
-          getTypesEquipement(),
-          getFabricants(),
-          getMarques(),
-        ]);
+  famillesData,
+  etatsData,
+  typesEquipementData,
+  fabricantsData,
+  marquesData,
+  plansPreventifsPredefinisData,
+] = await Promise.all([
+  getFamilles(),
+  getEtatsModele(),
+  getTypesEquipement(),
+  getFabricants(),
+  getMarques(),
+  getPlansPreventifsPredefinis(),
+]);
 
         setFamilles(famillesData);
         setEtats(etatsData);
         setTypesEquipement(typesEquipementData);
         setFabricants(fabricantsData);
         setMarques(marquesData);
+        setPlansPreventifsPredefinis(plansPreventifsPredefinisData);
       } catch (err) {
         setError(
           err instanceof Error
@@ -106,7 +114,7 @@ export function useModeleForm(options?: UseModeleFormOptions) {
     typesEquipement,
     fabricants,
     marques,
-
+    plansPreventifsPredefinis,
     loading,
     saving,
     error,

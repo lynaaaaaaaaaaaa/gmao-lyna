@@ -1,5 +1,8 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+import { AlertTriangle, Link2 } from 'lucide-react';
+
 import type { PlanPreventifPredefini } from '../types/plan-preventif-predefini.types';
 
 type PlanPreventifPredefiniDetailCardProps = {
@@ -12,11 +15,87 @@ function display(value?: string | number | boolean | null) {
   return String(value);
 }
 
+function ModeleAssociationBadge({
+  idModele,
+  modele,
+}: {
+  idModele?: number | null;
+  modele?: {
+    idModele: number;
+    code: string | null;
+    libelle: string | null;
+  } | null;
+}) {
+  const isAssociated = Boolean(idModele || modele?.idModele);
+
+  if (!isAssociated) {
+    return (
+      <span className="inline-flex rounded-full bg-orange-50 px-3 py-1 text-xs font-black text-orange-700">
+        Non associé
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+      Associé
+    </span>
+  );
+}
+
 export function PlanPreventifPredefiniDetailCard({
   item,
 }: PlanPreventifPredefiniDetailCardProps) {
+  const router = useRouter();
+
+  const isAssociated = Boolean(item.idModele || item.modele?.idModele);
+
+  function handleAssociate() {
+    router.push(
+      `/plans-preventifs-predefinis/${item.idPlanPreventifPredefini}/modifier`,
+    );
+  }
+
   return (
     <div className="space-y-5">
+      {!isAssociated && (
+        <div className="rounded-[20px] border border-orange-200 bg-orange-50 px-5 py-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-orange-600 shadow-sm">
+              <AlertTriangle size={22} />
+            </div>
+
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-[16px] font-black text-orange-800">
+                  Plan préventif prédéfini non associé
+                </h2>
+
+                <ModeleAssociationBadge
+                  idModele={item.idModele}
+                  modele={item.modele}
+                />
+              </div>
+
+              <p className="mt-2 text-[14px] font-medium leading-6 text-orange-700">
+                Ce plan préventif prédéfini n’est associé à aucun modèle. Il ne
+                sera donc pas proposé automatiquement lors de la création d’un
+                matériel.
+              </p>
+
+              <button
+                type="button"
+                onClick={handleAssociate}
+                className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 text-sm font-bold text-white transition hover:bg-orange-700"
+              >
+                <Link2 size={16} />
+                Associer à un modèle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div
         className="overflow-hidden rounded-[20px] border"
         style={{
@@ -29,125 +108,64 @@ export function PlanPreventifPredefiniDetailCard({
           className="border-b px-5 py-4"
           style={{ borderColor: '#EDF2F6' }}
         >
-          <h2
-            className="text-[18px] font-semibold"
-            style={{ color: '#183B56' }}
-          >
-            Informations générales
-          </h2>
-          <p className="mt-1 text-[13px]" style={{ color: '#6B8596' }}>
-            Détail du plan préventif prédéfini.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2
+                className="text-[18px] font-semibold"
+                style={{ color: '#183B56' }}
+              >
+                Informations générales
+              </h2>
+
+              <p className="mt-1 text-[13px]" style={{ color: '#6B8596' }}>
+                Détail du plan préventif prédéfini.
+              </p>
+            </div>
+
+            <ModeleAssociationBadge
+              idModele={item.idModele}
+              modele={item.modele}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-3">
-          <div>
-            <p
-              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-              style={{ color: '#8AA0B2' }}
-            >
-              Code
-            </p>
-            <p className="mt-2 text-[16px] font-medium" style={{ color: '#183B56' }}>
-              {display(item.code)}
-            </p>
-          </div>
+          <InfoItem label="Code" value={display(item.code)} />
 
-          <div>
-            <p
-              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-              style={{ color: '#8AA0B2' }}
-            >
-              Libellé / Titre
-            </p>
-            <p className="mt-2 text-[16px] font-medium" style={{ color: '#183B56' }}>
-              {display(item.titre)}
-            </p>
-          </div>
+          <InfoItem label="Libellé / Titre" value={display(item.titre)} />
 
-          <div>
-            <p
-              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-              style={{ color: '#8AA0B2' }}
-            >
-              État
-            </p>
-            <p className="mt-2 text-[16px] font-medium" style={{ color: '#183B56' }}>
-              {display(item.etat)}
-            </p>
-          </div>
+          <InfoItem label="État" value={display(item.etat)} />
 
-          <div>
-            <p
-              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-              style={{ color: '#8AA0B2' }}
-            >
-              Organisation
-            </p>
-            <p className="mt-2 text-[16px] font-medium" style={{ color: '#183B56' }}>
-              {display(item.organisation)}
-            </p>
-          </div>
+          <InfoItem label="Organisation" value={display(item.organisation)} />
 
-          <div>
-            <p
-              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-              style={{ color: '#8AA0B2' }}
-            >
-              Type de déclenchement
-            </p>
-            <p className="mt-2 text-[16px] font-medium" style={{ color: '#183B56' }}>
-              {display(item.typeDeclenchement)}
-            </p>
-          </div>
+          <InfoItem
+            label="Type de déclenchement"
+            value={display(item.typeDeclenchement)}
+          />
 
-          <div>
-            <p
-              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-              style={{ color: '#8AA0B2' }}
-            >
-              Actif
-            </p>
-            <p className="mt-2 text-[16px] font-medium" style={{ color: '#183B56' }}>
-              {display(item.actif)}
-            </p>
-          </div>
+          <InfoItem label="Actif" value={display(item.actif)} />
 
-          <div>
-            <p
-              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-              style={{ color: '#8AA0B2' }}
-            >
-              ID Modèle
-            </p>
-            <p className="mt-2 text-[16px] font-medium" style={{ color: '#183B56' }}>
-              {display(item.idModele)}
-            </p>
-          </div>
+          <InfoItem label="ID modèle" value={display(item.idModele)} />
 
-          <div>
-            <p
-              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-              style={{ color: '#8AA0B2' }}
-            >
-              Modèle lié
-            </p>
-            <p className="mt-2 text-[16px] font-medium" style={{ color: '#183B56' }}>
-              {display(item.modele?.libelle ?? item.modele?.code)}
-            </p>
-          </div>
+          <InfoItem
+            label="Modèle lié"
+            value={display(item.modele?.libelle ?? item.modele?.code)}
+          />
 
-          <div>
-            <p
-              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-              style={{ color: '#8AA0B2' }}
-            >
-              Nombre de déclencheurs
-            </p>
-            <p className="mt-2 text-[16px] font-medium" style={{ color: '#183B56' }}>
-              {item.ppp_declencheur?.length ?? 0}
-            </p>
-          </div>
+          <InfoItem
+            label="Statut association"
+            customValue={
+              <ModeleAssociationBadge
+                idModele={item.idModele}
+                modele={item.modele}
+              />
+            }
+          />
+
+          <InfoItem
+            label="Nombre de déclencheurs"
+            value={String(item.ppp_declencheur?.length ?? 0)}
+          />
         </div>
       </div>
 
@@ -169,6 +187,7 @@ export function PlanPreventifPredefiniDetailCard({
           >
             Déclencheurs PPP
           </h2>
+
           <p className="mt-1 text-[13px]" style={{ color: '#6B8596' }}>
             Déclencheurs associés à ce plan.
           </p>
@@ -211,24 +230,48 @@ export function PlanPreventifPredefiniDetailCard({
                     className="border-b"
                     style={{ borderColor: '#F1F5F8' }}
                   >
-                    <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
+                    <td
+                      className="px-4 py-4 md:px-5"
+                      style={{ color: '#183B56' }}
+                    >
                       {declencheur.idPppDeclencheur}
                     </td>
-                    <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
+
+                    <td
+                      className="px-4 py-4 md:px-5"
+                      style={{ color: '#183B56' }}
+                    >
                       {display(declencheur.typeDeclencheur)}
                     </td>
-                    <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
+
+                    <td
+                      className="px-4 py-4 md:px-5"
+                      style={{ color: '#183B56' }}
+                    >
                       {display(declencheur.priorite)}
                     </td>
-                    <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
+
+                    <td
+                      className="px-4 py-4 md:px-5"
+                      style={{ color: '#183B56' }}
+                    >
                       {display(declencheur.idGamme)}
                     </td>
-                    <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
-                      {declencheur.periodiciteValeur && declencheur.periodiciteUnite
+
+                    <td
+                      className="px-4 py-4 md:px-5"
+                      style={{ color: '#183B56' }}
+                    >
+                      {declencheur.periodiciteValeur &&
+                      declencheur.periodiciteUnite
                         ? `${declencheur.periodiciteValeur} ${declencheur.periodiciteUnite}`
                         : '-'}
                     </td>
-                    <td className="px-4 py-4 md:px-5" style={{ color: '#183B56' }}>
+
+                    <td
+                      className="px-4 py-4 md:px-5"
+                      style={{ color: '#183B56' }}
+                    >
                       {display(declencheur.actif)}
                     </td>
                   </tr>
@@ -237,6 +280,34 @@ export function PlanPreventifPredefiniDetailCard({
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoItem({
+  label,
+  value,
+  customValue,
+}: {
+  label: string;
+  value?: string;
+  customValue?: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p
+        className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+        style={{ color: '#8AA0B2' }}
+      >
+        {label}
+      </p>
+
+      <div
+        className="mt-2 text-[16px] font-medium"
+        style={{ color: '#183B56' }}
+      >
+        {customValue ?? value ?? '-'}
       </div>
     </div>
   );

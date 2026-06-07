@@ -8,6 +8,7 @@ import {
   BadgeCheck,
   Boxes,
   Building2,
+  CalendarClock,
   Factory,
   FileText,
   Landmark,
@@ -27,8 +28,8 @@ type FamilleOption = {
 
 type EtatModeleOption = {
   idEtat: number;
-  libelle?: string | null;
   code?: string | null;
+  libelle?: string | null;
 };
 
 type TypeEquipementOption = {
@@ -50,31 +51,59 @@ type MarqueOption = {
   idFabricant?: number | null;
 };
 
+type PlanPreventifPredefiniOption = {
+  idPlanPreventifPredefini: number;
+  code?: string | null;
+  libelle?: string | null;
+  description?: string | null;
+  actif?: boolean | null;
+};
+
+type ModelePppAssociation = {
+  idModelePlanPreventifPredefini?: number;
+  idPlanPreventifPredefini?: number | null;
+  principal?: boolean | null;
+  actif?: boolean | null;
+  plan_preventif_predefini?: PlanPreventifPredefiniOption | null;
+};
+
 type ModeleInitialData = {
   idModele?: number;
   code?: string | null;
   libelle?: string | null;
+
   idFamille?: number | null;
   idEtat?: number | null;
   idTypeEquipement?: number | null;
   idFabricant?: number | null;
   idMarque?: number | null;
+
   commentaire?: string | null;
   dureeVie?: number | string | null;
   budget?: number | string | null;
+
+  plan_preventif_predefini?: PlanPreventifPredefiniOption[];
+
+  modele_plan_preventif_predefini?: ModelePppAssociation[];
 };
 
 type CreateModeleDto = {
   code?: string | null;
   libelle?: string | null;
+
   idFamille?: number | null;
   idEtat: number;
+
   idTypeEquipement?: number | null;
   idFabricant?: number | null;
   idMarque?: number | null;
+
   commentaire?: string | null;
   dureeVie?: number | null;
   budget?: number | null;
+
+  pppIds?: number[];
+  pppPrincipalId?: number | null;
 };
 
 type UpdateModeleDto = Partial<CreateModeleDto>;
@@ -82,38 +111,51 @@ type UpdateModeleDto = Partial<CreateModeleDto>;
 type Props = {
   mode: Mode;
   initialData?: ModeleInitialData | null;
+
   familles: FamilleOption[];
   etats: EtatModeleOption[];
   typesEquipement: TypeEquipementOption[];
   fabricants: FabricantOption[];
   marques: MarqueOption[];
+  plansPreventifsPredefinis: PlanPreventifPredefiniOption[];
+
   onSubmit: (data: CreateModeleDto | UpdateModeleDto) => Promise<void>;
 };
 
 type FormState = {
   code: string;
   libelle: string;
+
   idFamille: string;
   idEtat: string;
   idTypeEquipement: string;
   idFabricant: string;
   idMarque: string;
+
   commentaire: string;
   dureeVie: string;
   budget: string;
+
+  pppIds: string[];
+  pppPrincipalId: string;
 };
 
 const DEFAULT_FORM: FormState = {
   code: '',
   libelle: '',
+
   idFamille: 'NONE',
   idEtat: '',
   idTypeEquipement: 'NONE',
   idFabricant: 'NONE',
   idMarque: 'NONE',
+
   commentaire: '',
   dureeVie: '',
   budget: '',
+
+  pppIds: [],
+  pppPrincipalId: '',
 };
 
 function toInputValue(value: unknown): string {
@@ -127,8 +169,8 @@ function toSelectValue(value: unknown): string {
 }
 
 function nullableText(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  const cleaned = value.trim();
+  return cleaned.length > 0 ? cleaned : null;
 }
 
 function nullableNumber(value: string): number | null {
@@ -141,20 +183,69 @@ function nullableNumber(value: string): number | null {
   return parsed;
 }
 
+function getAssociationPppId(association: ModelePppAssociation): number | null {
+  const directId = association.idPlanPreventifPredefini;
+  const nestedId =
+    association.plan_preventif_predefini?.idPlanPreventifPredefini;
+
+  const id = directId ?? nestedId ?? null;
+
+  if (id === null || id === undefined) return null;
+
+  const parsed = Number(id);
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 function buildInitialForm(initialData?: ModeleInitialData | null): FormState {
-  if (!initialData) return DEFAULT_FORM;
+  if (!initialData) {
+    return DEFAULT_FORM;
+  }
+
+  const associations = initialData.modele_plan_preventif_predefini ?? [];
+  const directPpp = initialData.plan_preventif_predefini ?? [];
+
+  const associatedIdsFromAssociation = associations
+    .map(getAssociationPppId)
+    .filter((id): id is number => id !== null)
+    .map(String);
+
+  const associatedIdsFromDirectRelation = directPpp
+    .map((ppp) => ppp.idPlanPreventifPredefini)
+    .filter((id): id is number => Number.isInteger(id) && id > 0)
+    .map(String);
+
+  const selectedPppIds = Array.from(
+    new Set([
+      ...associatedIdsFromAssociation,
+      ...associatedIdsFromDirectRelation,
+    ]),
+  );
+
+  const principalAssociation = associations.find(
+    (association) => association.principal,
+  );
+
+  const principalId = principalAssociation
+    ? getAssociationPppId(principalAssociation)
+    : null;
 
   return {
     code: toInputValue(initialData.code),
     libelle: toInputValue(initialData.libelle),
+
     idFamille: toSelectValue(initialData.idFamille),
     idEtat: toInputValue(initialData.idEtat),
     idTypeEquipement: toSelectValue(initialData.idTypeEquipement),
     idFabricant: toSelectValue(initialData.idFabricant),
     idMarque: toSelectValue(initialData.idMarque),
+
     commentaire: toInputValue(initialData.commentaire),
     dureeVie: toInputValue(initialData.dureeVie),
     budget: toInputValue(initialData.budget),
+
+    pppIds: selectedPppIds,
+    pppPrincipalId: principalId ? String(principalId) : selectedPppIds[0] || '',
   };
 }
 
@@ -166,6 +257,7 @@ export default function ModeleForm({
   typesEquipement,
   fabricants,
   marques,
+  plansPreventifsPredefinis,
   onSubmit,
 }: Props) {
   const router = useRouter();
@@ -220,12 +312,73 @@ export default function ModeleForm({
       form.dureeVie,
       form.budget,
       form.commentaire,
+      form.pppIds.length > 0 ? 'PPP' : '',
     ];
 
     const filled = fields.filter((field) => String(field).trim()).length;
 
     return Math.round((filled / fields.length) * 100);
   }, [form]);
+
+ const displayedPlansPreventifsPredefinis = useMemo(() => {
+  if (!isEditMode) {
+    return [];
+  }
+
+  const associations = initialData?.modele_plan_preventif_predefini ?? [];
+  const directPpp = initialData?.plan_preventif_predefini ?? [];
+
+  const allPppById = new Map(
+    plansPreventifsPredefinis.map((ppp) => [
+      String(ppp.idPlanPreventifPredefini),
+      ppp,
+    ]),
+  );
+
+  const displayed: PlanPreventifPredefiniOption[] = [];
+  const seen = new Set<string>();
+
+  associations.forEach((association) => {
+    const pppId = getAssociationPppId(association);
+
+    if (!pppId) return;
+
+    const key = String(pppId);
+
+    if (seen.has(key)) return;
+
+    seen.add(key);
+
+    const fromAvailableList = allPppById.get(key);
+    const fromAssociation = association.plan_preventif_predefini;
+
+    displayed.push(
+      fromAvailableList || {
+        idPlanPreventifPredefini: pppId,
+        code: fromAssociation?.code ?? `PPP-${pppId}`,
+        libelle:
+          fromAssociation?.libelle ??
+          'Plan préventif prédéfini sans libellé',
+        description: fromAssociation?.description ?? null,
+        actif: fromAssociation?.actif ?? true,
+      },
+    );
+  });
+
+  directPpp.forEach((ppp) => {
+    const key = String(ppp.idPlanPreventifPredefini);
+
+    if (seen.has(key)) return;
+
+    seen.add(key);
+
+    const fromAvailableList = allPppById.get(key);
+
+    displayed.push(fromAvailableList || ppp);
+  });
+
+  return displayed;
+}, [isEditMode, initialData, plansPreventifsPredefinis]);
 
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((previous) => ({
@@ -239,6 +392,47 @@ export default function ModeleForm({
       ...previous,
       idFabricant: value,
       idMarque: 'NONE',
+    }));
+  }
+
+  function handleTogglePpp(id: number) {
+    const value = String(id);
+
+    setForm((previous) => {
+      const alreadySelected = previous.pppIds.includes(value);
+
+      if (alreadySelected) {
+        const nextIds = previous.pppIds.filter((item) => item !== value);
+
+        const nextPrincipal =
+          previous.pppPrincipalId === value
+            ? nextIds[0] || ''
+            : previous.pppPrincipalId;
+
+        return {
+          ...previous,
+          pppIds: nextIds,
+          pppPrincipalId: nextPrincipal,
+        };
+      }
+
+      return {
+        ...previous,
+        pppIds: [...previous.pppIds, value],
+        pppPrincipalId: previous.pppPrincipalId || value,
+      };
+    });
+  }
+
+  function handlePrincipalPpp(id: number) {
+    const value = String(id);
+
+    setForm((previous) => ({
+      ...previous,
+      pppIds: previous.pppIds.includes(value)
+        ? previous.pppIds
+        : [...previous.pppIds, value],
+      pppPrincipalId: value,
     }));
   }
 
@@ -262,22 +456,27 @@ export default function ModeleForm({
     }
 
     const idEtat = Number(form.idEtat);
-    const idFamille =
-      form.idFamille !== 'NONE' ? Number(form.idFamille) : null;
-    const idTypeEquipement =
-      form.idTypeEquipement !== 'NONE'
-        ? Number(form.idTypeEquipement)
-        : null;
-    const idFabricant =
-      form.idFabricant !== 'NONE' ? Number(form.idFabricant) : null;
-    const idMarque = form.idMarque !== 'NONE' ? Number(form.idMarque) : null;
-    const dureeVie = nullableNumber(form.dureeVie);
-    const budget = nullableNumber(form.budget);
 
     if (Number.isNaN(idEtat)) {
       setError("L'état sélectionné est invalide.");
       return;
     }
+
+    const idFamille =
+      form.idFamille !== 'NONE' ? Number(form.idFamille) : null;
+
+    const idTypeEquipement =
+      form.idTypeEquipement !== 'NONE'
+        ? Number(form.idTypeEquipement)
+        : null;
+
+    const idFabricant =
+      form.idFabricant !== 'NONE' ? Number(form.idFabricant) : null;
+
+    const idMarque = form.idMarque !== 'NONE' ? Number(form.idMarque) : null;
+
+    const dureeVie = nullableNumber(form.dureeVie);
+    const budget = nullableNumber(form.budget);
 
     if (form.dureeVie.trim() && (!dureeVie || dureeVie < 1)) {
       setError('La durée de vie doit être un nombre positif.');
@@ -289,17 +488,31 @@ export default function ModeleForm({
       return;
     }
 
+    const pppIds = form.pppIds
+      .map(Number)
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    const pppPrincipalId =
+      form.pppPrincipalId && pppIds.includes(Number(form.pppPrincipalId))
+        ? Number(form.pppPrincipalId)
+        : pppIds[0] ?? null;
+
     const payload: CreateModeleDto | UpdateModeleDto = {
       code: form.code.trim(),
       libelle: form.libelle.trim(),
+
       idFamille,
       idEtat,
       idTypeEquipement,
       idFabricant,
       idMarque,
+
       commentaire: nullableText(form.commentaire),
       dureeVie,
       budget,
+
+      pppIds,
+      pppPrincipalId,
     };
 
     try {
@@ -342,6 +555,7 @@ export default function ModeleForm({
                   <span className="rounded-full bg-[#eef7fa] px-3 py-1 text-xs font-bold text-[#06475a]">
                     Fiche modèle
                   </span>
+
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
                     Module équipements
                   </span>
@@ -360,11 +574,15 @@ export default function ModeleForm({
 
             <div className="flex flex-wrap items-center gap-3">
               <Badge>
-                {selectedType?.libelle || selectedType?.code || 'Type non défini'}
+                {selectedType?.libelle ||
+                  selectedType?.code ||
+                  'Type non défini'}
               </Badge>
 
               <Badge variant={selectedFabricant ? 'success' : 'muted'}>
-                {selectedFabricant?.nom || selectedFabricant?.code || 'Fabricant non défini'}
+                {selectedFabricant?.nom ||
+                  selectedFabricant?.code ||
+                  'Fabricant non défini'}
               </Badge>
 
               <div className="w-[180px] rounded-2xl bg-slate-50 px-4 py-3">
@@ -372,6 +590,7 @@ export default function ModeleForm({
                   <span>Complétion</span>
                   <span>{completion}%</span>
                 </div>
+
                 <div className="mt-2 h-2 rounded-full bg-slate-200">
                   <div
                     className="h-full rounded-full bg-[#06475a] transition-all"
@@ -408,7 +627,9 @@ export default function ModeleForm({
               <Field label="Libellé" required>
                 <input
                   value={form.libelle}
-                  onChange={(event) => updateField('libelle', event.target.value)}
+                  onChange={(event) =>
+                    updateField('libelle', event.target.value)
+                  }
                   placeholder="Ex : Portique gerbeur RTG"
                   className={inputClassName}
                 />
@@ -516,6 +737,7 @@ export default function ModeleForm({
                   <p className="text-sm font-extrabold text-[#06475a]">
                     Conseil GMAO
                   </p>
+
                   <p className="mt-1 text-sm font-medium leading-6 text-slate-600">
                     Le modèle sert à regrouper les caractéristiques communes de
                     plusieurs matériels. Un matériel créé avec ce modèle pourra
@@ -524,6 +746,111 @@ export default function ModeleForm({
                 </div>
               </div>
             </div>
+          </FormSection>
+
+          <FormSection
+            icon={<CalendarClock className="h-5 w-5" />}
+            title="Plans préventifs prédéfinis"
+            description={
+              isEditMode
+                ? 'Sélectionnez parmi les plans préventifs prédéfinis déjà associés à ce modèle et définissez le plan principal.'
+                : 'Les plans préventifs prédéfinis seront associés après la création du modèle.'
+            }
+          >
+            {!isEditMode ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-center">
+                <p className="text-sm font-bold text-slate-500">
+                  Les PPP seront disponibles après la création du modèle.
+                </p>
+              </div>
+            ) : displayedPlansPreventifsPredefinis.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-center">
+                <p className="text-sm font-bold text-slate-500">
+                  Aucun plan préventif prédéfini associé à ce modèle.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {displayedPlansPreventifsPredefinis.map((ppp) => {
+                  const id = String(ppp.idPlanPreventifPredefini);
+                  const checked = form.pppIds.includes(id);
+                  const principal = form.pppPrincipalId === id;
+
+                  return (
+                    <div
+                      key={ppp.idPlanPreventifPredefini}
+                      className={`rounded-2xl border px-5 py-4 transition ${
+                        checked
+                          ? 'border-[#0b3d4f]/30 bg-[#eef7fa]'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <label className="flex cursor-pointer items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              handleTogglePpp(ppp.idPlanPreventifPredefini)
+                            }
+                            className="mt-1 h-4 w-4 rounded border-slate-300 accent-[#0b3d4f]"
+                          />
+
+                          <div>
+                            <p className="text-sm font-black text-slate-950">
+                              {ppp.code ||
+                                `PPP-${ppp.idPlanPreventifPredefini}`}
+                            </p>
+
+                            <p className="mt-1 text-sm font-medium text-slate-500">
+                              {ppp.libelle ||
+                                'Plan préventif prédéfini sans libellé'}
+                            </p>
+
+                            {ppp.description && (
+                              <p className="mt-2 text-xs font-medium leading-5 text-slate-400">
+                                {ppp.description}
+                              </p>
+                            )}
+                          </div>
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handlePrincipalPpp(ppp.idPlanPreventifPredefini)
+                          }
+                          disabled={!checked}
+                          className={`inline-flex h-9 items-center justify-center rounded-xl px-4 text-xs font-black transition ${
+                            principal
+                              ? 'bg-[#0b3d4f] text-white'
+                              : checked
+                                ? 'bg-white text-[#0b3d4f] ring-1 ring-[#0b3d4f]/20 hover:bg-[#0b3d4f] hover:text-white'
+                                : 'bg-slate-100 text-slate-400'
+                          }`}
+                        >
+                          {principal ? 'Principal' : 'Définir principal'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {isEditMode && form.pppIds.length > 0 && (
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4">
+                <p className="text-sm font-bold text-blue-700">
+                  {form.pppIds.length} plan(s) préventif(s) prédéfini(s)
+                  sélectionné(s).
+                </p>
+
+                <p className="mt-1 text-sm font-medium text-blue-600">
+                  Un seul PPP est marqué comme principal. Il sera proposé par
+                  défaut lors de la création d’un matériel basé sur ce modèle.
+                </p>
+              </div>
+            )}
           </FormSection>
 
           <FormSection
@@ -544,6 +871,7 @@ export default function ModeleForm({
                     placeholder="Ex : 15"
                     className={`${inputClassName} pr-20`}
                   />
+
                   <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
                     ans
                   </span>
@@ -563,6 +891,7 @@ export default function ModeleForm({
                     placeholder="Ex : 2500000"
                     className={`${inputClassName} pr-16`}
                   />
+
                   <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
                     DA
                   </span>
@@ -576,11 +905,13 @@ export default function ModeleForm({
                 title="Référentiel"
                 value="Modèle commun"
               />
+
               <InfoCard
                 icon={<Building2 className="h-5 w-5" />}
                 title="Utilisation"
                 value="Matériels similaires"
               />
+
               <InfoCard
                 icon={<Landmark className="h-5 w-5" />}
                 title="Pilotage"
@@ -600,7 +931,7 @@ export default function ModeleForm({
                 onChange={(event) =>
                   updateField('commentaire', event.target.value)
                 }
-                placeholder="Ex : Modèle utilisé pour les portiques gerbeurs du terminal. Vérifier les plans préventifs associés avant création des matériels."
+                placeholder="Ex : Modèle utilisé pour les portiques gerbeurs du terminal."
                 rows={4}
                 className={textareaClassName}
               />
@@ -659,6 +990,7 @@ function FormSection({
 
         <div>
           <h2 className="text-lg font-extrabold text-slate-950">{title}</h2>
+
           {description && (
             <p className="mt-1 text-sm font-medium text-slate-500">
               {description}
@@ -686,6 +1018,7 @@ function Field({
       <span className="mb-2 block text-sm font-bold text-slate-800">
         {label} {required && <span className="text-red-500">*</span>}
       </span>
+
       {children}
     </label>
   );
@@ -734,6 +1067,7 @@ function InfoCard({
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
             {title}
           </p>
+
           <p className="mt-1 text-sm font-extrabold text-slate-800">{value}</p>
         </div>
       </div>

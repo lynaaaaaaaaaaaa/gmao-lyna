@@ -8,9 +8,12 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
+
 import { MaterielService } from './materiel.service';
 import { CreateMaterielDto } from './dto/create-materiel.dto';
 import { UpdateMaterielDto } from './dto/update-materiel.dto';
+import { ChangeEtatMaterielDto } from './dto/change-etat-materiel.dto';
+import { UpdateCycleVieMaterielDto } from './dto/update-cycle-vie-materiel.dto';
 
 @Controller('materiels')
 export class MaterielController {
@@ -26,6 +29,11 @@ export class MaterielController {
     return this.materielService.findAll();
   }
 
+  @Get(':id/intervention-possible')
+  verifierInterventionPossible(@Param('id', ParseIntPipe) id: number) {
+    return this.materielService.verifierInterventionPossible(id);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.materielService.findOne(id);
@@ -37,6 +45,22 @@ export class MaterielController {
     @Body() updateDto: UpdateMaterielDto,
   ) {
     return this.materielService.update(id, updateDto);
+  }
+
+  @Patch(':id/cycle-vie')
+  updateCycleVie(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCycleVieMaterielDto,
+  ) {
+    return this.materielService.updateCycleVie(id, dto);
+  }
+
+  @Patch(':id/changer-etat')
+  changerEtatMateriel(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ChangeEtatMaterielDto,
+  ) {
+    return this.materielService.changerEtatMateriel(id, dto);
   }
 
   @Delete(':id')

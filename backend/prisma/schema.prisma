@@ -46,9 +46,9 @@ model article {
   uniteArticle unite_article? @relation(fields: [idUniteArticle], references: [idUniteArticle], onDelete: SetNull, onUpdate: Restrict)
   modele       modele?        @relation(fields: [idModele], references: [idModele], onDelete: SetNull, onUpdate: Restrict)
 
-  consommations              consommation[]
-  materiels                  materiel[]
-  etatMateriels              etat_materiel[]
+  
+
+  consommations consommation[]
   stocks                     stock_article_magasin[]
   mouvementsStock            mouvement_stock[]
   lignesEntreeStock          entree_stock_ligne[]
@@ -106,14 +106,15 @@ model demande_intervention {
 }
 
 model etat_materiel {
+  code String? @unique @db.VarChar(50)
   idEtat    Int     @id @default(autoincrement())
   libelle   String? @db.VarChar(100)
-  idArticle Int?
+  
 
-  article  article?   @relation(fields: [idArticle], references: [idArticle])
+  
   materiel materiel[]
 
-  @@index([idArticle])
+
 }
 
 model etat_modele {
@@ -255,26 +256,42 @@ model intervention {
 }
 
 model materiel {
-  idMateriel      Int       @id @default(autoincrement())
-  code            String?   @unique @db.VarChar(50)
-  numeroSerie     String?   @unique @db.VarChar(100)
-  dateMiseService DateTime? @db.Date
+  idMateriel Int     @id @default(autoincrement())
+  code       String? @unique @db.VarChar(50)
+  libelle    String? @db.VarChar(150)
 
-  idArticle          Int?
+  numeroSerie String? @unique @db.VarChar(100)
+
+  // Cycle de vie
+  dateMiseService       DateTime? @db.Date
+  dateDernierInventaire DateTime? @db.Date
+  dateRebut             DateTime? @db.Date
+  motifRebut            String?   @db.VarChar(255)
+
+  // Si true : l'inventaire se fait depuis le module stock
+  // Si false : l'admin peut modifier manuellement le dernier inventaire
+  gereEnStock Boolean @default(false)
+
+  // EN_STOCK, SUR_TERRAIN, EN_ATELIER, AU_REBUT
+  positionActuelle String? @db.VarChar(30)
+
   idModele           Int?
   idEtat             Int?
   idType             Int?
   idPointStructure   Int?
+  idMaterielParent   Int?
   idLigneEntreeStock Int?
 
   actif Boolean? @default(true)
 
-  article          article?            @relation(fields: [idArticle], references: [idArticle], onDelete: SetNull, onUpdate: Restrict)
   modele           modele?             @relation(fields: [idModele], references: [idModele], onDelete: Restrict, onUpdate: Restrict, map: "materiel_ibfk_1")
   etat_materiel    etat_materiel?      @relation(fields: [idEtat], references: [idEtat], onDelete: Restrict, onUpdate: Restrict, map: "materiel_ibfk_2")
   type_materiel    type_materiel?      @relation(fields: [idType], references: [idType], onDelete: Restrict, onUpdate: Restrict, map: "materiel_ibfk_3")
   point_structure  point_structure?    @relation("PointStructureMateriels", fields: [idPointStructure], references: [idPoint], onDelete: SetNull, onUpdate: Restrict)
   entreeStockLigne entree_stock_ligne? @relation(fields: [idLigneEntreeStock], references: [idLigneEntreeStock], onDelete: SetNull)
+
+  materielParent materiel?  @relation("MaterielParent", fields: [idMaterielParent], references: [idMateriel], onDelete: SetNull, onUpdate: Restrict)
+  sousMateriels  materiel[] @relation("MaterielParent")
 
   demande_intervention               demande_intervention[]
   intervention                       intervention[]
@@ -287,11 +304,15 @@ model materiel {
   plan_preventif_declencheur         plan_preventif_declencheur[]
   points_mesure                      point_mesure[]
 
-  @@index([idArticle])
+   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  
   @@index([idEtat], map: "idEtat")
   @@index([idModele], map: "idModele")
   @@index([idType], map: "idType")
   @@index([idPointStructure])
+  @@index([idMaterielParent])
   @@index([idLigneEntreeStock])
 }
 
@@ -397,6 +418,7 @@ model modele {
   plan_preventif_predefini        plan_preventif_predefini[]
   ppp_declencheur                 ppp_declencheur[]
   modele_plan_preventif_predefini modele_plan_preventif_predefini[]
+
 
   @@index([idFamille], map: "idFamille")
   @@index([idEtat], map: "modele_ibfk_2")

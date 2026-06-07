@@ -354,9 +354,7 @@ export default function ModelesPage() {
                     <th className="px-6 py-4 font-black">Libellé</th>
                     <th className="px-6 py-4 font-black">Type</th>
                     <th className="px-6 py-4 font-black">Statut</th>
-                    <th className="px-6 py-4 text-right font-black">
-                      Actions
-                    </th>
+                   <th className="px-4 py-4 text-center">Actions</th>
                   </tr>
                 </thead>
 

@@ -1,4 +1,4 @@
-'use client';
+
 
 import { Eye, Pencil, Trash2 } from 'lucide-react';
 
@@ -14,6 +14,48 @@ type PlanPreventifPredefiniTableProps = {
 function formatBoolean(value?: boolean | null) {
   if (value === true) return 'Oui';
   if (value === false) return 'Non';
+  return '-';
+}
+
+function ModeleAssociationBadge({
+  idModele,
+  modele,
+}: {
+  idModele?: number | null;
+  modele?: {
+    idModele: number;
+    code: string | null;
+    libelle: string | null;
+  } | null;
+}) {
+  const isAssociated = Boolean(idModele || modele?.idModele);
+
+  if (!isAssociated) {
+    return (
+      <span className="inline-flex rounded-full bg-orange-50 px-3 py-1 text-xs font-black text-orange-700">
+        Non associé
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+      Associé
+    </span>
+  );
+}
+
+function displayModeleLabel(item: PlanPreventifPredefini) {
+  if (item.modele?.code || item.modele?.libelle) {
+    return `${item.modele.code || ''}${
+      item.modele.code && item.modele.libelle ? ' — ' : ''
+    }${item.modele.libelle || ''}`;
+  }
+
+  if (item.idModele) {
+    return `Modèle #${item.idModele}`;
+  }
+
   return '-';
 }
 
@@ -37,11 +79,14 @@ export function PlanPreventifPredefiniTable({
             <th className="w-[110px] px-4 py-4 md:px-5">Code</th>
             <th className="w-[140px] px-4 py-4 md:px-5">Titre</th>
             <th className="w-[90px] px-4 py-4 md:px-5">État</th>
-            <th className="w-[180px] px-4 py-4 md:px-5">Type</th>
-            <th className="w-[120px] px-4 py-4 md:px-5">Organisation</th>
+            <th className="w-[170px] px-4 py-4 md:px-5">Type</th>
+            <th className="w-[130px] px-4 py-4 md:px-5">Association</th>
+            <th className="w-[180px] px-4 py-4 md:px-5">Modèle lié</th>
             <th className="w-[90px] px-4 py-4 md:px-5">Actif</th>
-            <th className="w-[120px] px-4 py-4 md:px-5">Nb décl.</th>
-            <th className="w-[140px] px-4 py-4 text-center md:px-5">Actions</th>
+            <th className="w-[110px] px-4 py-4 md:px-5">Nb décl.</th>
+            <th className="w-[140px] px-4 py-4 text-center md:px-5">
+              Actions
+            </th>
           </tr>
         </thead>
 
@@ -49,7 +94,7 @@ export function PlanPreventifPredefiniTable({
           {items.length === 0 ? (
             <tr>
               <td
-                colSpan={8}
+                colSpan={9}
                 className="px-4 py-6 text-[15px] md:px-5"
                 style={{ color: '#183B56' }}
               >
@@ -95,12 +140,19 @@ export function PlanPreventifPredefiniTable({
                   {item.typeDeclenchement || '-'}
                 </td>
 
+                <td className="px-4 py-4 md:px-5">
+                  <ModeleAssociationBadge
+                    idModele={item.idModele}
+                    modele={item.modele}
+                  />
+                </td>
+
                 <td
                   className="truncate px-4 py-4 md:px-5"
                   style={{ color: '#183B56' }}
-                  title={item.organisation || '-'}
+                  title={displayModeleLabel(item)}
                 >
-                  {item.organisation || '-'}
+                  {displayModeleLabel(item)}
                 </td>
 
                 <td
@@ -128,6 +180,7 @@ export function PlanPreventifPredefiniTable({
                         color: '#6E8CA0',
                         backgroundColor: '#FFFFFF',
                       }}
+                      title="Voir le détail"
                     >
                       <Eye size={15} />
                     </button>
@@ -141,6 +194,7 @@ export function PlanPreventifPredefiniTable({
                         color: '#6E8CA0',
                         backgroundColor: '#FFFFFF',
                       }}
+                      title="Modifier"
                     >
                       <Pencil size={15} />
                     </button>
@@ -154,6 +208,7 @@ export function PlanPreventifPredefiniTable({
                         color: '#D46A6A',
                         backgroundColor: '#FFFFFF',
                       }}
+                      title="Supprimer"
                     >
                       <Trash2 size={15} />
                     </button>

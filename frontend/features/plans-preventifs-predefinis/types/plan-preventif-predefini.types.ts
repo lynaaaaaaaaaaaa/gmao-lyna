@@ -59,17 +59,12 @@ export interface PlanPreventifPredefini {
   etat?: string | null;
   typeDeclenchement?: string | null;
   organisation?: string | null;
-  idModele?: number | null;
+  
   actif?: boolean | null;
   createdAt?: string;
   updatedAt?: string;
 
-  modele?: {
-    idModele: number;
-    code?: string | null;
-    libelle?: string | null;
-  } | null;
-
+  
   ppp_declencheur?: PppDeclencheur[];
 
   plan_preventif?: Array<{
@@ -77,6 +72,14 @@ export interface PlanPreventifPredefini {
     code: string;
     libelle?: string | null;
   }>;
+
+  idModele?: number | null;
+
+modele?: {
+  idModele: number;
+  code: string | null;
+  libelle: string | null;
+} | null;
 }
 
 export type CreatePlanPreventifPredefiniPayload = {

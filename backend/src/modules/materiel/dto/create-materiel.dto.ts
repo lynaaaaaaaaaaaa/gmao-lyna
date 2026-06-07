@@ -2,7 +2,6 @@ import {
   IsBoolean,
   IsDateString,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
@@ -10,24 +9,50 @@ import {
 import { Type } from 'class-transformer';
 
 export class CreateMaterielDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(50)
-  code!: string;
+  code?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  libelle?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(100)
   numeroSerie?: string;
 
+  // Cycle de vie
   @IsOptional()
   @IsDateString()
   dateMiseService?: string;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  idArticle?: number;
+  @IsDateString()
+  dateDernierInventaire?: string;
+
+  @IsOptional()
+  @IsDateString()
+  dateRebut?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  motifRebut?: string;
+
+  // true : inventaire géré par le module stock
+  // false : l'admin peut modifier manuellement l'inventaire
+  @IsOptional()
+  @IsBoolean()
+  gereEnStock?: boolean;
+
+  // EN_STOCK, SUR_TERRAIN, EN_ATELIER, AU_REBUT
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  positionActuelle?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -48,6 +73,16 @@ export class CreateMaterielDto {
   @Type(() => Number)
   @IsInt()
   idPointStructure?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  idMaterielParent?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  idLigneEntreeStock?: number;
 
   @IsOptional()
   @IsBoolean()

@@ -8,6 +8,7 @@ import type {
   ModeleEtat,
   TypeEquipementApi,
   UpdateModelePayload,
+  PlanPreventifPredefiniApi,
 } from '@/features/modeles/types/modele';
 
 async function readErrorMessage(response: Response, fallback: string) {
@@ -160,4 +161,19 @@ export async function deleteModele(idModele: number): Promise<void> {
 
     throw new Error(message);
   }
+}
+export async function getPlansPreventifsPredefinis(): Promise<
+  PlanPreventifPredefiniApi[]
+> {
+  const response = await fetch(`${API_BASE_URL}/plans-preventifs-predefinis`, {
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      'Impossible de charger les plans préventifs prédéfinis.',
+    );
+  }
+
+  return response.json();
 }

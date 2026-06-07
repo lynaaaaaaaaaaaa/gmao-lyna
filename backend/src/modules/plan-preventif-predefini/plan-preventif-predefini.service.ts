@@ -28,30 +28,33 @@ export class PlanPreventifPredefiniService {
       include: this.defaultPlanInclude(),
     });
   }
+  findAll() {
+  return this.prisma.plan_preventif_predefini.findMany({
+    include: {
+      modele: true,
+      ppp_declencheur: true,
+    },
+    orderBy: {
+      idPlanPreventifPredefini: 'desc',
+    },
+  });
+}
 
-  async findAll() {
-    return this.prisma.plan_preventif_predefini.findMany({
-      include: this.defaultPlanInclude(),
-      orderBy: {
-        idPlanPreventifPredefini: 'desc',
-      },
-    });
+ async findOne(idPlanPreventifPredefini: number) {
+  const ppp = await this.prisma.plan_preventif_predefini.findUnique({
+    where: { idPlanPreventifPredefini },
+    include: {
+      modele: true,
+      ppp_declencheur: true,
+    },
+  });
+
+  if (!ppp) {
+    throw new NotFoundException('Plan préventif prédéfini introuvable.');
   }
 
-  async findOne(id: number) {
-    const item = await this.prisma.plan_preventif_predefini.findUnique({
-      where: { idPlanPreventifPredefini: id },
-      include: this.defaultPlanDetailInclude(),
-    });
-
-    if (!item) {
-      throw new NotFoundException(
-        `Plan préventif prédéfini ${id} introuvable`,
-      );
-    }
-
-    return item;
-  }
+  return ppp;
+}
 
   async update(id: number, dto: UpdatePlanPreventifPredefiniDto) {
     await this.ensurePlanExists(id);

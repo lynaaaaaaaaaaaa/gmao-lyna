@@ -19,12 +19,12 @@ export default function ModifierModelePage() {
     typesEquipement,
     fabricants,
     marques,
+    plansPreventifsPredefinis,
     loading,
     error,
     submitModele,
   } = useEditModeleForm({
     modeleId: modeleId || '',
-    onSuccess: () => router.push('/modeles'),
   });
 
   if (!modeleId) {
@@ -75,8 +75,8 @@ export default function ModifierModelePage() {
             </h1>
 
             <p className="mt-2 text-sm font-medium text-slate-500">
-              Préparation des informations du modèle, des familles, états, types,
-              fabricants et marques.
+              Préparation des informations du modèle, des familles, états,
+              types, fabricants, marques et plans préventifs prédéfinis.
             </p>
           </div>
         </div>
@@ -127,6 +127,7 @@ export default function ModifierModelePage() {
       typesEquipement={typesEquipement}
       fabricants={fabricants}
       marques={marques}
+      plansPreventifsPredefinis={plansPreventifsPredefinis}
       onSubmit={async (payload) => {
         await submitModele(payload as UpdateModelePayload);
       }}

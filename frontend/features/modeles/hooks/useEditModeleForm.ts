@@ -10,6 +10,7 @@ import {
   getFabricants,
   getMarques,
   getModeleById,
+  getPlansPreventifsPredefinis,
   getTypesEquipement,
   updateModele,
 } from '@/features/modeles/services/modele.service';
@@ -19,6 +20,7 @@ import type {
   MarqueApi,
   ModeleApi,
   ModeleEtat,
+  PlanPreventifPredefiniApi,
   TypeEquipementApi,
   UpdateModelePayload,
 } from '@/features/modeles/types/modele';
@@ -41,6 +43,9 @@ export function useEditModeleForm({
   );
   const [fabricants, setFabricants] = useState<FabricantApi[]>([]);
   const [marques, setMarques] = useState<MarqueApi[]>([]);
+  const [plansPreventifsPredefinis, setPlansPreventifsPredefinis] = useState<
+    PlanPreventifPredefiniApi[]
+  >([]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,10 +53,19 @@ export function useEditModeleForm({
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function fetchData() {
+      if (!modeleId) {
+        setError('Identifiant du modèle manquant.');
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
+        setSuccess(null);
 
         const [
           modeleData,
@@ -60,6 +74,7 @@ export function useEditModeleForm({
           typesEquipementData,
           fabricantsData,
           marquesData,
+          plansPreventifsPredefinisData,
         ] = await Promise.all([
           getModeleById(modeleId),
           getFamilles(),
@@ -67,7 +82,10 @@ export function useEditModeleForm({
           getTypesEquipement(),
           getFabricants(),
           getMarques(),
+          getPlansPreventifsPredefinis(),
         ]);
+
+        if (!isMounted) return;
 
         setModele(modeleData);
         setFamilles(famillesData);
@@ -75,19 +93,36 @@ export function useEditModeleForm({
         setTypesEquipement(typesEquipementData);
         setFabricants(fabricantsData);
         setMarques(marquesData);
+        setPlansPreventifsPredefinis(plansPreventifsPredefinisData);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erreur inconnue.');
+        if (!isMounted) return;
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Erreur lors du chargement du formulaire.',
+        );
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
-    if (modeleId) {
-      fetchData();
-    }
+    fetchData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [modeleId]);
 
   async function submitModele(payload: UpdateModelePayload) {
+    if (!modeleId) {
+      const message = 'Identifiant du modèle manquant.';
+      setError(message);
+      throw new Error(message);
+    }
+
     try {
       setSaving(true);
       setError(null);
@@ -97,6 +132,7 @@ export function useEditModeleForm({
 
       setModele(updated);
       setSuccess('Le modèle a été modifié avec succès.');
+
       onSuccess?.();
     } catch (err) {
       const message =
@@ -104,6 +140,7 @@ export function useEditModeleForm({
 
       setError(message);
       setSuccess(null);
+
       throw new Error(message);
     } finally {
       setSaving(false);
@@ -118,6 +155,7 @@ export function useEditModeleForm({
     typesEquipement,
     fabricants,
     marques,
+    plansPreventifsPredefinis,
 
     loading,
     saving,
