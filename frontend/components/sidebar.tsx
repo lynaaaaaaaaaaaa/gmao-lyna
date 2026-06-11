@@ -40,7 +40,7 @@ const menuStructure: MenuModule[] = [
       { label: 'Modèles', href: '/modeles' },
       { label: 'Matériels', href: '/materiels' },
       {label: 'Points de structure', href: '/points-structure'},
-       {label: 'Points de mesure', href: '/points-mesure/nouveau'},
+       {label: 'Points de mesure', href: '/points-mesure'},
 
     ],
   },

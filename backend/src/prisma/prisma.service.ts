@@ -11,10 +11,10 @@ export class PrismaService
   constructor() {
     const adapter = new PrismaMariaDb({
       host: 'localhost',
-      port: 3307,
+      port: 3306,
       user: 'root',
-      password: 'cam2003',
-      database: 'gmao_db',
+      password: '',
+      database: 'app-gmao',
       connectionLimit: 5,
     });
 

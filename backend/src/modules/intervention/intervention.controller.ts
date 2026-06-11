@@ -7,12 +7,22 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
+import { CreateOccupationInterventionDto } from './dto/create-occupation-intervention.dto';
 import { InterventionService } from './intervention.service';
+import { CreateInterventionDto } from './dto/create-intervention.dto';
 import { UpdateInterventionDto } from './dto/update-intervention.dto';
-import { AffecterTechnicienDto } from './dto/affecter-technicien.dto';
-import { RealiserInterventionDto } from './dto/realiser-intervention.dto';
-import { AffecterEquipeDto } from './dto/affecter-equipe.dto';
+import { UpsertCompteRenduInterventionDto } from './dto/upsert-compte-rendu-intervention.dto';
+import {
+  AffecterEquipeDto,
+  AffecterTechnicienDto,
+  ChangementEtatDto,
+  DemarrerInterventionDto,
+  RefuserTravauxDto,
+  ReporterInterventionDto,
+  TerminerInterventionDto,
+} from './dto/action-intervention.dto';
 
 @Controller('interventions')
 export class InterventionController {
@@ -50,6 +60,84 @@ export class InterventionController {
     return this.service.findByEtat(etat);
   }
 
+  @Get()
+  findAll(
+    @Query('etat') etat?: string,
+    @Query('typeMaintenance') typeMaintenance?: string,
+    @Query('idMateriel') idMateriel?: string,
+    @Query('idEquipe') idEquipe?: string,
+  ) {
+    return this.service.findAll({
+      etat,
+      typeMaintenance,
+      idMateriel: idMateriel ? Number(idMateriel) : undefined,
+      idEquipe: idEquipe ? Number(idEquipe) : undefined,
+    });
+  }
+    @Get(':id/occupations')
+  getOccupations(@Param('id', ParseIntPipe) idIntervention: number) {
+    return this.service.getOccupations(idIntervention);
+  }
+
+  @Post(':id/occupations')
+  createOccupation(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: CreateOccupationInterventionDto,
+  ) {
+    return this.service.createOccupation(idIntervention, dto);
+  }
+
+  @Delete(':id/occupations/:idOccupation')
+  deleteOccupation(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Param('idOccupation', ParseIntPipe) idOccupation: number,
+  ) {
+    return this.service.deleteOccupation(idIntervention, idOccupation);
+  }
+  
+  @Get(':id/compte-rendu')
+  getCompteRendu(@Param('id', ParseIntPipe) idIntervention: number) {
+    return this.service.getCompteRendu(idIntervention);
+  }
+
+  @Post(':id/compte-rendu')
+  upsertCompteRendu(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: UpsertCompteRenduInterventionDto,
+  ) {
+    return this.service.upsertCompteRendu(idIntervention, dto);
+  }
+
+  @Patch(':id/compte-rendu')
+  updateCompteRendu(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: UpsertCompteRenduInterventionDto,
+  ) {
+    return this.service.upsertCompteRendu(idIntervention, dto);
+  }
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) idIntervention: number) {
+    return this.service.findOne(idIntervention);
+  }
+
+  @Post()
+  create(@Body() dto: CreateInterventionDto) {
+    return this.service.create(dto);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: UpdateInterventionDto,
+  ) {
+    return this.service.update(idIntervention, dto);
+  }
+
+  @Delete(':id')
+  delete(@Param('id', ParseIntPipe) idIntervention: number) {
+    return this.service.delete(idIntervention);
+  }
+
   @Patch(':id/affecter-equipe')
   affecterEquipe(
     @Param('id', ParseIntPipe) idIntervention: number,
@@ -71,17 +159,93 @@ export class InterventionController {
     return this.service.retirerAffectation(idAffectation);
   }
 
+  @Post(':id/demander-validation')
+  demanderValidation(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: ChangementEtatDto,
+  ) {
+    return this.service.demanderValidation(idIntervention, dto);
+  }
+
+  @Post(':id/valider')
+  valider(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: ChangementEtatDto,
+  ) {
+    return this.service.valider(idIntervention, dto);
+  }
+
+  @Post(':id/demarrer')
+  demarrer(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: DemarrerInterventionDto,
+  ) {
+    return this.service.demarrer(idIntervention, dto);
+  }
+
+  @Post(':id/terminer')
+  terminer(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: TerminerInterventionDto,
+  ) {
+    return this.service.terminer(idIntervention, dto);
+  }
+
+  @Post(':id/accepter-travaux')
+  accepterTravaux(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: ChangementEtatDto,
+  ) {
+    return this.service.accepterTravaux(idIntervention, dto);
+  }
+
+  @Post(':id/refuser-travaux')
+  refuserTravaux(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: RefuserTravauxDto,
+  ) {
+    return this.service.refuserTravaux(idIntervention, dto);
+  }
+
+  @Post(':id/solder')
+  solder(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: ChangementEtatDto,
+  ) {
+    return this.service.solder(idIntervention, dto);
+  }
+
+  @Post(':id/annuler')
+  annuler(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: ChangementEtatDto,
+  ) {
+    return this.service.annuler(idIntervention, dto);
+  }
+
+  @Post(':id/archiver')
+  archiver(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: ChangementEtatDto,
+  ) {
+    return this.service.archiver(idIntervention, dto);
+  }
+
+  @Post(':id/reporter')
+  reporter(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: ReporterInterventionDto,
+  ) {
+    return this.service.reporter(idIntervention, dto);
+  }
+
+  // Compatibilité avec ton ancien frontend
   @Patch(':id/realiser')
   realiser(
     @Param('id', ParseIntPipe) idIntervention: number,
-    @Body() dto: RealiserInterventionDto,
+    @Body() dto: TerminerInterventionDto,
   ) {
-    return this.service.realiser(idIntervention, dto);
-  }
-
-  @Patch(':id/annuler')
-  annuler(@Param('id', ParseIntPipe) idIntervention: number) {
-    return this.service.annuler(idIntervention);
+    return this.service.terminer(idIntervention, dto);
   }
 
   @Patch(':id/cloturer')
@@ -89,24 +253,9 @@ export class InterventionController {
     @Param('id', ParseIntPipe) idIntervention: number,
     @Body('closedBy') closedBy?: string,
   ) {
-    return this.service.cloturer(idIntervention, closedBy);
-  }
-
-  @Get()
-  findAll() {
-    return this.service.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.service.findOne(id);
-  }
-
-  @Patch(':id')
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateInterventionDto,
-  ) {
-    return this.service.update(id, dto);
+    return this.service.solder(idIntervention, {
+      utilisateur: closedBy,
+      commentaire: 'Clôture depuis ancienne route',
+    });
   }
 }
