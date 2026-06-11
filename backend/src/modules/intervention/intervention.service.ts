@@ -6,7 +6,9 @@ import {
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '../../../generated/prisma/client';
+
 import { CreateOccupationInterventionDto } from './dto/create-occupation-intervention.dto';
+import { CreateConsommationInterventionDto } from './dto/create-consommation-intervention.dto';
 import { CreateInterventionDto } from './dto/create-intervention.dto';
 import { UpdateInterventionDto } from './dto/update-intervention.dto';
 import { UpsertCompteRenduInterventionDto } from './dto/upsert-compte-rendu-intervention.dto';
@@ -38,18 +40,22 @@ const interventionInclude = {
   equipe_maintenance: true,
   plan_preventif: true,
   plan_preventif_declencheur: true,
+
   affectation_technicien: {
     include: {
       technicien: true,
     },
   },
+
   operation_intervention: true,
+
   consommations: {
     include: {
       article: true,
     },
   },
-    occupations: {
+
+  occupations: {
     include: {
       technicien: true,
       operation: true,
@@ -58,7 +64,25 @@ const interventionInclude = {
       dateOccupation: 'desc',
     },
   },
+
+  sortieStocks: {
+    include: {
+      lignes: {
+        include: {
+          article: true,
+          magasin: true,
+          emplacement: true,
+          materiel: true,
+        },
+      },
+    },
+    orderBy: {
+      idSortieStock: 'desc',
+    },
+  },
+
   compteRendu: true,
+
   historiquesEtat: {
     orderBy: {
       changedAt: 'desc',
@@ -86,8 +110,6 @@ export class InterventionService {
       },
     });
   }
-
-  
 
   async findOne(idIntervention: number) {
     const intervention = await this.prisma.intervention.findUnique({
@@ -701,8 +723,8 @@ export class InterventionService {
       });
     });
   }
-   
-    async getOccupations(idIntervention: number) {
+
+  async getOccupations(idIntervention: number) {
     await this.findOne(idIntervention);
 
     return this.prisma.occupation_intervention.findMany({
@@ -817,6 +839,333 @@ export class InterventionService {
       });
 
       await this.recalculateOccupationTotalsTx(tx, idIntervention);
+
+      return tx.intervention.findUnique({
+        where: {
+          idIntervention,
+        },
+        include: interventionInclude,
+      });
+    });
+  }
+
+  async getConsommations(idIntervention: number) {
+    await this.findOne(idIntervention);
+
+    return this.prisma.consommation.findMany({
+      where: {
+        idIntervention,
+      },
+      include: {
+        article: true,
+      },
+      orderBy: {
+        idConsommation: 'desc',
+      },
+    });
+  }
+
+  async createConsommation(
+    idIntervention: number,
+    dto: CreateConsommationInterventionDto,
+  ) {
+    const intervention = await this.findOne(idIntervention);
+
+    if (intervention.etat !== INTERVENTION_ETATS.EN_COURS) {
+      throw new BadRequestException(
+        'Une consommation de stock ne peut être saisie que sur une intervention en cours.',
+      );
+    }
+
+    const article = await this.prisma.article.findUnique({
+      where: {
+        idArticle: dto.idArticle,
+      },
+    });
+
+    if (!article) {
+      throw new NotFoundException('Article introuvable.');
+    }
+
+    if (!article.gereEnStock) {
+      throw new BadRequestException('Cet article n’est pas géré en stock.');
+    }
+
+    const magasin = await this.prisma.magasin.findUnique({
+      where: {
+        idMagasin: dto.idMagasin,
+      },
+    });
+
+    if (!magasin) {
+      throw new NotFoundException('Magasin introuvable.');
+    }
+
+    const stock = await this.prisma.stock_article_magasin.findUnique({
+      where: {
+        idArticle_idMagasin: {
+          idArticle: dto.idArticle,
+          idMagasin: dto.idMagasin,
+        },
+      },
+    });
+
+    if (!stock) {
+      throw new BadRequestException(
+        'Aucune ligne de stock trouvée pour cet article dans ce magasin.',
+      );
+    }
+
+    const quantite = new Prisma.Decimal(dto.quantite);
+
+    if (quantite.lte(0)) {
+      throw new BadRequestException('La quantité doit être supérieure à 0.');
+    }
+
+    if (new Prisma.Decimal(stock.quantiteDisponible).lt(quantite)) {
+      throw new BadRequestException(
+        `Stock insuffisant. Disponible : ${stock.quantiteDisponible}, demandé : ${dto.quantite}.`,
+      );
+    }
+
+    const prixUnitaire = this.resolvePrixUnitaireConsommation(
+      dto.prixUnitaire,
+      article,
+    );
+
+    const coutTotal = prixUnitaire.mul(quantite);
+
+    const dateSortie = this.parseDate(dto.dateSortie) ?? new Date();
+
+    return this.prisma.$transaction(async (tx) => {
+      const numeroSortie = await this.generateSortieStockNumeroTx(tx);
+
+      const sortieStock = await tx.sortie_stock.create({
+        data: {
+          numero: numeroSortie,
+          dateSortie,
+          statut: 'VALIDEE',
+          commentaire:
+            dto.commentaire ??
+            `Consommation stock pour intervention ${intervention.code ?? idIntervention}`,
+          idIntervention,
+        },
+      });
+
+      const ligneSortieStock = await tx.sortie_stock_ligne.create({
+        data: {
+          idSortieStock: sortieStock.idSortieStock,
+          idArticle: dto.idArticle,
+          idMagasin: dto.idMagasin,
+          idEmplacement: dto.idEmplacement,
+          idMateriel: dto.idMateriel,
+          quantite,
+          prixUnitaire,
+          commentaire: dto.commentaire,
+        },
+        include: {
+          article: true,
+          magasin: true,
+          emplacement: true,
+          materiel: true,
+        },
+      });
+
+      const consommation = await tx.consommation.create({
+        data: {
+          idIntervention,
+          idArticle: dto.idArticle,
+          quantite: dto.quantite,
+          coutTotal,
+        },
+        include: {
+          article: true,
+        },
+      });
+
+      await tx.stock_article_magasin.update({
+        where: {
+          idStock: stock.idStock,
+        },
+        data: {
+          quantitePhysique: {
+            decrement: quantite,
+          },
+          quantiteDisponible: {
+            decrement: quantite,
+          },
+        },
+      });
+
+      const mouvementStock = await tx.mouvement_stock.create({
+        data: {
+          typeMouvement: 'SORTIE_MAINTENANCE',
+          dateMouvement: new Date(),
+          quantite,
+          idArticle: dto.idArticle,
+          idMateriel: dto.idMateriel ?? intervention.idMateriel,
+          idMagasinSource: dto.idMagasin,
+          origineType: 'INTERVENTION',
+          origineId: idIntervention,
+          commentaire:
+            dto.commentaire ??
+            `Sortie stock liée à l’intervention ${intervention.code ?? idIntervention}`,
+        },
+      });
+
+      await this.recalculateConsommationTotalsTx(tx, idIntervention);
+
+      const interventionUpdated = await tx.intervention.findUnique({
+        where: {
+          idIntervention,
+        },
+        include: interventionInclude,
+      });
+
+      return {
+        consommation,
+        sortieStock,
+        ligneSortieStock,
+        mouvementStock,
+        intervention: interventionUpdated,
+      };
+    });
+  }
+
+  async deleteConsommation(
+    idIntervention: number,
+    idConsommation: number,
+  ) {
+    const intervention = await this.findOne(idIntervention);
+
+    if (intervention.etat !== INTERVENTION_ETATS.EN_COURS) {
+      throw new BadRequestException(
+        'Une consommation ne peut être supprimée que sur une intervention en cours.',
+      );
+    }
+
+    const consommation = await this.prisma.consommation.findUnique({
+      where: {
+        idConsommation,
+      },
+      include: {
+        article: true,
+      },
+    });
+
+    if (!consommation) {
+      throw new NotFoundException('Consommation introuvable.');
+    }
+
+    if (consommation.idIntervention !== idIntervention) {
+      throw new BadRequestException(
+        'Cette consommation n’appartient pas à cette intervention.',
+      );
+    }
+
+    if (!consommation.idArticle || !consommation.quantite) {
+      throw new BadRequestException(
+        'Consommation incomplète. Suppression automatique impossible.',
+      );
+    }
+
+    const quantite = new Prisma.Decimal(consommation.quantite);
+
+    const lignesSortie = await this.prisma.sortie_stock_ligne.findMany({
+      where: {
+        idArticle: consommation.idArticle,
+        quantite,
+        sortieStock: {
+          idIntervention,
+        },
+      },
+      include: {
+        sortieStock: true,
+      },
+      orderBy: {
+        idLigneSortieStock: 'desc',
+      },
+    });
+
+    if (lignesSortie.length !== 1) {
+      throw new BadRequestException(
+        'Suppression automatique impossible : plusieurs sorties stock correspondent à cette consommation.',
+      );
+    }
+
+    const ligneSortie = lignesSortie[0];
+
+    return this.prisma.$transaction(async (tx) => {
+      const stock = await tx.stock_article_magasin.findUnique({
+        where: {
+          idArticle_idMagasin: {
+            idArticle: consommation.idArticle!,
+            idMagasin: ligneSortie.idMagasin,
+          },
+        },
+      });
+
+      if (!stock) {
+        throw new BadRequestException(
+          'Stock introuvable pour restaurer la quantité.',
+        );
+      }
+
+      await tx.stock_article_magasin.update({
+        where: {
+          idStock: stock.idStock,
+        },
+        data: {
+          quantitePhysique: {
+            increment: quantite,
+          },
+          quantiteDisponible: {
+            increment: quantite,
+          },
+        },
+      });
+
+      await tx.mouvement_stock.create({
+        data: {
+          typeMouvement: 'ANNULATION_SORTIE_MAINTENANCE',
+          dateMouvement: new Date(),
+          quantite,
+          idArticle: consommation.idArticle!,
+          idMateriel: ligneSortie.idMateriel ?? intervention.idMateriel,
+          idMagasinDestination: ligneSortie.idMagasin,
+          origineType: 'INTERVENTION',
+          origineId: idIntervention,
+          commentaire: `Annulation consommation ${idConsommation}`,
+        },
+      });
+
+      await tx.sortie_stock_ligne.delete({
+        where: {
+          idLigneSortieStock: ligneSortie.idLigneSortieStock,
+        },
+      });
+
+      const remainingLines = await tx.sortie_stock_ligne.count({
+        where: {
+          idSortieStock: ligneSortie.idSortieStock,
+        },
+      });
+
+      if (remainingLines === 0) {
+        await tx.sortie_stock.delete({
+          where: {
+            idSortieStock: ligneSortie.idSortieStock,
+          },
+        });
+      }
+
+      await tx.consommation.delete({
+        where: {
+          idConsommation,
+        },
+      });
+
+      await this.recalculateConsommationTotalsTx(tx, idIntervention);
 
       return tx.intervention.findUnique({
         where: {
@@ -991,8 +1340,6 @@ export class InterventionService {
         },
       });
 
-      
-
       await this.createHistoriqueEtatTx(tx, {
         idIntervention,
         ancienEtat,
@@ -1070,7 +1417,8 @@ export class InterventionService {
       },
     });
   }
-     private async recalculateOccupationTotalsTx(
+
+  private async recalculateOccupationTotalsTx(
     tx: Prisma.TransactionClient,
     idIntervention: number,
   ) {
@@ -1094,7 +1442,118 @@ export class InterventionService {
         dureeReelle: totalDuree,
       },
     });
-  } 
+  }
+
+  private async recalculateConsommationTotalsTx(
+    tx: Prisma.TransactionClient,
+    idIntervention: number,
+  ) {
+    const result = await tx.consommation.aggregate({
+      where: {
+        idIntervention,
+      },
+      _sum: {
+        coutTotal: true,
+      },
+    });
+
+    const coutPiecesReel =
+      result._sum.coutTotal ?? new Prisma.Decimal(0);
+
+    const intervention = await tx.intervention.findUnique({
+      where: {
+        idIntervention,
+      },
+    });
+
+    const coutMainOeuvreReel = this.decimalOrZero(
+      intervention?.coutMainOeuvreReel,
+    );
+
+    const coutMoyensReel = this.decimalOrZero(
+      intervention?.coutMoyensReel,
+    );
+
+    const coutSousTraitanceReel = this.decimalOrZero(
+      intervention?.coutSousTraitanceReel,
+    );
+
+    const coutTotalReel = coutPiecesReel
+      .plus(coutMainOeuvreReel)
+      .plus(coutMoyensReel)
+      .plus(coutSousTraitanceReel);
+
+    await tx.intervention.update({
+      where: {
+        idIntervention,
+      },
+      data: {
+        coutPiecesReel,
+        coutTotalReel,
+      },
+    });
+  }
+
+  private resolvePrixUnitaireConsommation(
+    prixDto: number | undefined,
+    article: {
+      prixUnitaire?: Prisma.Decimal | null;
+      prixStandard?: Prisma.Decimal | null;
+      prixMoyenPondere?: Prisma.Decimal | null;
+    },
+  ) {
+    if (prixDto !== undefined) {
+      return new Prisma.Decimal(prixDto);
+    }
+
+    if (
+      article.prixMoyenPondere !== null &&
+      article.prixMoyenPondere !== undefined
+    ) {
+      return new Prisma.Decimal(article.prixMoyenPondere);
+    }
+
+    if (article.prixStandard !== null && article.prixStandard !== undefined) {
+      return new Prisma.Decimal(article.prixStandard);
+    }
+
+    if (article.prixUnitaire !== null && article.prixUnitaire !== undefined) {
+      return new Prisma.Decimal(article.prixUnitaire);
+    }
+
+    return new Prisma.Decimal(0);
+  }
+
+  private async generateSortieStockNumeroTx(tx: Prisma.TransactionClient) {
+    const count = await tx.sortie_stock.count();
+
+    let index = count + 1;
+
+    while (true) {
+      const numero = `SOR-MNT-${String(index).padStart(6, '0')}`;
+
+      const exists = await tx.sortie_stock.findUnique({
+        where: {
+          numero,
+        },
+      });
+
+      if (!exists) return numero;
+
+      index++;
+    }
+  }
+
+  private decimalOrZero(
+    value?: Prisma.Decimal | number | string | null,
+  ) {
+    if (value === null || value === undefined) {
+      return new Prisma.Decimal(0);
+    }
+
+    return new Prisma.Decimal(value);
+  }
+
   private async createHistoriqueEtatTx(
     tx: Prisma.TransactionClient,
     data: {

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { CreateOccupationInterventionDto } from './dto/create-occupation-intervention.dto';
 import { InterventionService } from './intervention.service';
+import { CreateConsommationInterventionDto } from './dto/create-consommation-intervention.dto';
 import { CreateInterventionDto } from './dto/create-intervention.dto';
 import { UpdateInterventionDto } from './dto/update-intervention.dto';
 import { UpsertCompteRenduInterventionDto } from './dto/upsert-compte-rendu-intervention.dto';
@@ -31,6 +32,27 @@ export class InterventionController {
   @Get('dashboard/responsable')
   dashboardResponsable() {
     return this.service.dashboardResponsable();
+  }
+
+    @Get(':id/consommations')
+  getConsommations(@Param('id', ParseIntPipe) idIntervention: number) {
+    return this.service.getConsommations(idIntervention);
+  }
+
+  @Post(':id/consommations')
+  createConsommation(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: CreateConsommationInterventionDto,
+  ) {
+    return this.service.createConsommation(idIntervention, dto);
+  }
+
+  @Delete(':id/consommations/:idConsommation')
+  deleteConsommation(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Param('idConsommation', ParseIntPipe) idConsommation: number,
+  ) {
+    return this.service.deleteConsommation(idIntervention, idConsommation);
   }
 
   @Get('dashboard/equipe/:idEquipe')
@@ -94,7 +116,7 @@ export class InterventionController {
   ) {
     return this.service.deleteOccupation(idIntervention, idOccupation);
   }
-  
+
   @Get(':id/compte-rendu')
   getCompteRendu(@Param('id', ParseIntPipe) idIntervention: number) {
     return this.service.getCompteRendu(idIntervention);
@@ -230,6 +252,8 @@ export class InterventionController {
   ) {
     return this.service.archiver(idIntervention, dto);
   }
+
+  
 
   @Post(':id/reporter')
   reporter(
