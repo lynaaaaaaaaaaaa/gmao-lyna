@@ -23,52 +23,136 @@ model affectation_technicien {
 }
 
 model article {
-  idArticle                  Int                             @id @default(autoincrement())
-  reference                  String?                         @unique @db.VarChar(50)
-  designation                String?                         @db.VarChar(150)
-  description                String?                         @db.Text
-  prixUnitaire               Decimal?                        @db.Decimal(10, 2)
-  idFamille                  Int?
-  idUniteArticle             Int?
-  idModele                   Int?
-  gereEnStock                Boolean                         @default(true)
-  serialise                  Boolean                         @default(false)
-  reparable                  Boolean                         @default(false)
-  actif                      Boolean                         @default(true)
-  createdAt                  DateTime                        @default(now())
-  updatedAt                  DateTime                        @updatedAt
-  famille                    famille?                        @relation(fields: [idFamille], references: [idFamille], onUpdate: Restrict)
-  modele                     modele?                         @relation(fields: [idModele], references: [idModele], onUpdate: Restrict)
-  uniteArticle               unite_article?                  @relation(fields: [idUniteArticle], references: [idUniteArticle], onUpdate: Restrict)
+  idArticle Int @id @default(autoincrement())
+
+  reference   String? @unique @db.VarChar(50)
+  designation String? @db.VarChar(150)
+  description String? @db.Text
+
+  etatArticle String            @default("ACTIF") @db.VarChar(30)
+  categorie   CategorieArticle? @default(PIECE_RECHANGE)
+
+  idFamille      Int?
+  idUniteArticle Int?
+
+  // Compatibilité ancienne logique article -> modele
+  idModele Int?
+
+  fournisseurPrincipal String? @db.VarChar(150)
+  fabricantArticle     String? @db.VarChar(150)
+  referenceFabricant   String? @db.VarChar(100)
+  nbDecimales          Int     @default(0)
+  codeBarres           String? @db.VarChar(100)
+
+  centreCout    String? @db.VarChar(100)
+  budget        String? @db.VarChar(100)
+  codeComptable String? @db.VarChar(100)
+  natureAchat   String? @db.VarChar(100)
+  taxe          String? @db.VarChar(50)
+
+  // Compatibilité ancien stock
+  prixUnitaire Decimal? @db.Decimal(10, 2)
+
+  // Version améliorée
+  prixStandard     Decimal? @db.Decimal(10, 2)
+  prixMoyenPondere Decimal? @db.Decimal(10, 2)
+
+  estModele   Boolean @default(false)
+  gereEnStock Boolean @default(true)
+  gereParLot  Boolean @default(false)
+  serialise   Boolean @default(false)
+
+  reparable Boolean @default(false)
+  actif     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  createdBy String?  @db.VarChar(100)
+  updatedBy String?  @db.VarChar(100)
+
+  famille      famille?       @relation(fields: [idFamille], references: [idFamille], onDelete: SetNull, onUpdate: Restrict)
+  uniteArticle unite_article? @relation(fields: [idUniteArticle], references: [idUniteArticle], onDelete: SetNull, onUpdate: Restrict)
+
+  // Ancienne relation compatible
+  modele modele? @relation("ArticleModeleCompat", fields: [idModele], references: [idModele], onDelete: SetNull, onUpdate: Restrict)
+
+  // Nouvelle relation propre article modèle -> modèle équipement
+  modeleEquipement modele? @relation("ArticleModele")
+
   consommations              consommation[]
-  lignesEntreeStock          entree_stock_ligne[]
-  lignesDemandesTransfert    ligne_demande_transfert_stock[]
-  lignesInventairePrepare    LigneInventairePrepare[]
-  lignes_reapprovisionnement ligne_reapprovisionnement[]     @relation("ArticleLignesReapprovisionnement")
-  mouvementsStock            mouvement_stock[]
-  reservationsStock          reservation_stock[]
-  lignesSortieStock          sortie_stock_ligne[]
   stocks                     stock_article_magasin[]
+  mouvementsStock            mouvement_stock[]
+  lignesEntreeStock          entree_stock_ligne[]
+  lignesSortieStock          sortie_stock_ligne[]
+  lignesInventairePrepare    LigneInventairePrepare[]
+  reservationsStock          reservation_stock[]
+  lignesDemandesTransfert    ligne_demande_transfert_stock[]
+  lignes_reapprovisionnement ligne_reapprovisionnement[] @relation("ArticleLignesReapprovisionnement")
   fournituresIntervention    fourniture_intervention[]
 
   @@index([idFamille])
   @@index([idUniteArticle])
   @@index([idModele])
+  @@index([categorie])
+  @@index([etatArticle])
+  @@index([estModele])
+  @@index([gereEnStock])
+  @@index([serialise])
+  @@index([actif])
+}
+
+enum CategorieArticle {
+  PIECE_RECHANGE
+  CONSOMMABLE
+  FOURNITURE
+  OUTILLAGE
+  EQUIPEMENT_STOCKE
+  SERVICE
+  AUTRE
+}
+
+enum CriticiteModele {
+  FAIBLE
+  MOYENNE
+  ELEVEE
+  CRITIQUE
+}
+
+enum NiveauMaintenance {
+  NIVEAU_1
+  NIVEAU_2
+  NIVEAU_3
+  NIVEAU_4
+  NIVEAU_5
 }
 
 model consommation {
-  idConsommation Int           @id @default(autoincrement())
-  quantite       Int?
-  coutTotal      Decimal?      @db.Decimal(10, 2)
-  idArticle      Int?
-  idIntervention Int?
-  article        article?      @relation(fields: [idArticle], references: [idArticle], onDelete: Restrict, onUpdate: Restrict, map: "consommation_ibfk_1")
-  intervention   intervention? @relation(fields: [idIntervention], references: [idIntervention], onDelete: Restrict, onUpdate: Restrict, map: "consommation_ibfk_2")
+  idConsommation Int @id @default(autoincrement())
 
-  @@index([idArticle], map: "idArticle")
-  @@index([idIntervention], map: "idIntervention")
+  quantite     Decimal  @db.Decimal(10, 2)
+  prixUnitaire Decimal? @db.Decimal(10, 2)
+  coutTotal    Decimal? @db.Decimal(10, 2)
+
+  idArticle          Int
+  idIntervention     Int
+  idMagasin          Int?
+  idSortieStockLigne Int?
+
+  createdBy String?  @db.VarChar(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  article      article      @relation(fields: [idArticle], references: [idArticle], onDelete: Restrict)
+  intervention intervention @relation(fields: [idIntervention], references: [idIntervention], onDelete: Restrict)
+  magasin      magasin?     @relation(fields: [idMagasin], references: [idMagasin], onDelete: SetNull)
+
+  sortieStockLigne sortie_stock_ligne? @relation(fields: [idSortieStockLigne], references: [idLigneSortieStock], onDelete: SetNull)
+
+  @@index([idArticle])
+  @@index([idIntervention])
+  @@index([idMagasin])
+  @@index([idSortieStockLigne])
 }
-
 model unite_article {
   idUniteArticle Int       @id @default(autoincrement())
   code           String    @unique @db.VarChar(20)
@@ -467,42 +551,52 @@ model intervention {
 }
 
 model materiel {
-  idMateriel                         Int                                  @id @default(autoincrement())
-  code                               String?                              @unique @db.VarChar(50)
-  numeroSerie                        String?                              @unique @db.VarChar(100)
-  dateMiseService                    DateTime?                            @db.Date
-  idModele                           Int?
-  idEtat                             Int?
-  idType                             Int?
-  actif                              Boolean?                             @default(true)
-  idPointStructure                   Int?
-  idLigneEntreeStock                 Int?
-  createdAt                          DateTime                             @default(now())
-  dateDernierInventaire              DateTime?                            @db.Date
-  dateRebut                          DateTime?                            @db.Date
-  gereEnStock                        Boolean                              @default(false)
-  idMaterielParent                   Int?
-  libelle                            String?                              @db.VarChar(150)
-  motifRebut                         String?                              @db.VarChar(255)
-  positionActuelle                   String?                              @db.VarChar(30)
-  updatedAt                          DateTime                             @default(now()) @updatedAt
+  idMateriel Int     @id @default(autoincrement())
+  code       String? @unique @db.VarChar(50)
+  libelle    String? @db.VarChar(150)
+
+  numeroSerie String? @unique @db.VarChar(100)
+
+  dateMiseService       DateTime? @db.Date
+  dateDernierInventaire DateTime? @db.Date
+  dateRebut             DateTime? @db.Date
+  motifRebut            String?   @db.VarChar(255)
+
+  gereEnStock Boolean @default(false)
+
+  positionActuelle String? @db.VarChar(30)
+
+  idModele           Int?
+  idEtat             Int?
+  idType             Int?
+  idPointStructure   Int?
+  idMaterielParent   Int?
+  idLigneEntreeStock Int?
+
+  actif Boolean? @default(true)
+
+  modele           modele?             @relation(fields: [idModele], references: [idModele], onDelete: Restrict, onUpdate: Restrict, map: "materiel_ibfk_1")
+  etat_materiel    etat_materiel?      @relation(fields: [idEtat], references: [idEtat], onDelete: Restrict, onUpdate: Restrict, map: "materiel_ibfk_2")
+  type_materiel    type_materiel?      @relation(fields: [idType], references: [idType], onDelete: Restrict, onUpdate: Restrict, map: "materiel_ibfk_3")
+  point_structure  point_structure?    @relation("PointStructureMateriels", fields: [idPointStructure], references: [idPoint], onDelete: SetNull, onUpdate: Restrict)
+  entreeStockLigne entree_stock_ligne? @relation(fields: [idLigneEntreeStock], references: [idLigneEntreeStock], onDelete: SetNull)
+
+  materielParent materiel?  @relation("MaterielParent", fields: [idMaterielParent], references: [idMateriel], onDelete: SetNull, onUpdate: Restrict)
+  sousMateriels  materiel[] @relation("MaterielParent")
+
   demande_intervention               demande_intervention[]
-  gamme_operation                    gamme_operation[]                    @relation("GammeOperationMateriel")
-  historique_declenchement_preventif historique_declenchement_preventif[]
   intervention                       intervention[]
-  lignesInventairePrepare            LigneInventairePrepare[]
-  modele                             modele?                              @relation(fields: [idModele], references: [idModele], onDelete: Restrict, onUpdate: Restrict, map: "materiel_ibfk_1")
-  etat_materiel                      etat_materiel?                       @relation(fields: [idEtat], references: [idEtat], onDelete: Restrict, onUpdate: Restrict, map: "materiel_ibfk_2")
-  type_materiel                      type_materiel?                       @relation(fields: [idType], references: [idType], onDelete: Restrict, onUpdate: Restrict, map: "materiel_ibfk_3")
-  entreeStockLigne                   entree_stock_ligne?                  @relation(fields: [idLigneEntreeStock], references: [idLigneEntreeStock])
-  materielParent                     materiel?                            @relation("MaterielParent", fields: [idMaterielParent], references: [idMateriel], onUpdate: Restrict)
-  sousMateriels                      materiel[]                           @relation("MaterielParent")
-  point_structure                    point_structure?                     @relation("PointStructureMateriels", fields: [idPointStructure], references: [idPoint], onUpdate: Restrict)
   mouvementsStock                    mouvement_stock[]
+  lignesInventairePrepare            LigneInventairePrepare[]
+  lignesSortieStock                  sortie_stock_ligne[]
+  gamme_operation                    gamme_operation[] @relation("GammeOperationMateriel")
+  historique_declenchement_preventif historique_declenchement_preventif[]
   plan_preventif                     plan_preventif[]
   plan_preventif_declencheur         plan_preventif_declencheur[]
   points_mesure                      point_mesure[]
-  lignesSortieStock                  sortie_stock_ligne[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@index([idEtat], map: "idEtat")
   @@index([idModele], map: "idModele")
@@ -511,7 +605,6 @@ model materiel {
   @@index([idMaterielParent])
   @@index([idLigneEntreeStock])
 }
-
 model magasin {
   idMagasin                    Int                           @id @default(autoincrement())
   code                         String                        @unique @db.VarChar(50)
@@ -530,6 +623,7 @@ model magasin {
   reservationsStock            reservation_stock[]
   lignesSortieStock            sortie_stock_ligne[]
   stocks                       stock_article_magasin[]
+  consommations consommation[]
 }
 
 model stock_article_magasin {
@@ -573,38 +667,73 @@ model mouvement_stock {
 }
 
 model modele {
-  idModele                        Int                               @id @default(autoincrement())
-  code                            String?                           @db.VarChar(50)
-  libelle                         String?                           @db.VarChar(100)
-  idFamille                       Int?
-  idEtat                          Int
-  budget                          Decimal?                          @db.Decimal(12, 2)
-  commentaire                     String?                           @db.Text
-  dureeVie                        Int?
-  idFabricant                     Int?
-  idMarque                        Int?
-  idTypeEquipement                Int?
-  articles                        article[]
+  idModele Int     @id @default(autoincrement())
+  code     String? @db.VarChar(50)
+  libelle  String? @db.VarChar(100)
+
+  // Nouvelle logique : un modèle équipement peut venir d’un article modèle
+  idArticle Int? @unique
+
+  idFamille        Int?
+  idEtat           Int
+  idTypeEquipement Int?
+  idFabricant      Int?
+  idMarque         Int?
+
+  referenceConstructeur String? @db.VarChar(100)
+  version               String? @db.VarChar(50)
+  commentaire           String? @db.Text
+
+  criticite         CriticiteModele?   @default(MOYENNE)
+  niveauMaintenance NiveauMaintenance?
+  dureeVie          Int?
+  garantieMois      Int?
+  reparable         Boolean            @default(true)
+
+  budget               Decimal? @db.Decimal(12, 2)
+  coutMaintenancePrevu Decimal? @db.Decimal(12, 2)
+
+  poidsKg  Decimal? @db.Decimal(10, 2)
+  longueur Decimal? @db.Decimal(10, 2)
+  largeur  Decimal? @db.Decimal(10, 2)
+  hauteur  Decimal? @db.Decimal(10, 2)
+
+  actif Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  createdBy String?  @db.VarChar(100)
+  updatedBy String?  @db.VarChar(100)
+
+  // Nouvelle relation propre
+  article article? @relation("ArticleModele", fields: [idArticle], references: [idArticle], onDelete: SetNull, onUpdate: Restrict)
+
+  // Ancienne relation compatible avec idModele dans article
+  articles article[] @relation("ArticleModeleCompat")
+
+  famille     famille?    @relation(fields: [idFamille], references: [idFamille], onDelete: Restrict, onUpdate: Restrict, map: "modele_ibfk_1")
+  etat_modele etat_modele @relation(fields: [idEtat], references: [idEtat], onUpdate: Restrict, map: "modele_ibfk_2")
+
+  type_equipement type_equipement? @relation(fields: [idTypeEquipement], references: [idTypeEquipement], onDelete: SetNull, onUpdate: Restrict)
+  fabricant       fabricant?       @relation(fields: [idFabricant], references: [idFabricant], onDelete: SetNull, onUpdate: Restrict)
+  marque          marque?          @relation(fields: [idMarque], references: [idMarque], onDelete: SetNull, onUpdate: Restrict)
+
   gamme                           gamme[]
-  gamme_operation                 gamme_operation[]                 @relation("GammeOperationModele")
+  gamme_operation                 gamme_operation[] @relation("GammeOperationModele")
   materiel                        materiel[]
-  famille                         famille?                          @relation(fields: [idFamille], references: [idFamille], onDelete: Restrict, onUpdate: Restrict, map: "modele_ibfk_1")
-  etat_modele                     etat_modele                       @relation(fields: [idEtat], references: [idEtat], onUpdate: Restrict, map: "modele_ibfk_2")
-  fabricant                       fabricant?                        @relation(fields: [idFabricant], references: [idFabricant], onUpdate: Restrict)
-  marque                          marque?                           @relation(fields: [idMarque], references: [idMarque], onUpdate: Restrict)
-  type_equipement                 type_equipement?                  @relation(fields: [idTypeEquipement], references: [idTypeEquipement], onUpdate: Restrict)
-  modele_plan_preventif_predefini modele_plan_preventif_predefini[]
   plan_preventif_declencheur      plan_preventif_declencheur[]
   plan_preventif_predefini        plan_preventif_predefini[]
   ppp_declencheur                 ppp_declencheur[]
+  modele_plan_preventif_predefini modele_plan_preventif_predefini[]
 
   @@index([idFamille], map: "idFamille")
   @@index([idEtat], map: "modele_ibfk_2")
   @@index([idTypeEquipement])
   @@index([idFabricant])
   @@index([idMarque])
+  @@index([criticite])
+  @@index([actif])
 }
-
 model operation_intervention {
   idOperation            Int                       @id @default(autoincrement())
   ordre                  Int?
@@ -811,7 +940,7 @@ model sortie_stock_ligne {
   magasin            magasin              @relation(fields: [idMagasin], references: [idMagasin])
   materiel           materiel?            @relation(fields: [idMateriel], references: [idMateriel])
   sortieStock        sortie_stock         @relation(fields: [idSortieStock], references: [idSortieStock], onDelete: Cascade)
-
+  consommations consommation[]
   @@index([idSortieStock])
   @@index([idArticle])
   @@index([idMagasin])
