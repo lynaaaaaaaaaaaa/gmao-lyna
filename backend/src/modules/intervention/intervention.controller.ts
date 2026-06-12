@@ -9,12 +9,8 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { CreateOccupationInterventionDto } from './dto/create-occupation-intervention.dto';
-import { InterventionService } from './intervention.service';
-import { CreateConsommationInterventionDto } from './dto/create-consommation-intervention.dto';
-import { CreateInterventionDto } from './dto/create-intervention.dto';
-import { UpdateInterventionDto } from './dto/update-intervention.dto';
-import { UpsertCompteRenduInterventionDto } from './dto/upsert-compte-rendu-intervention.dto';
+
+import { AnnulerConsommationInterventionDto } from './dto/annuler-consommation-intervention.dto';
 import {
   AffecterEquipeDto,
   AffecterTechnicienDto,
@@ -24,35 +20,28 @@ import {
   ReporterInterventionDto,
   TerminerInterventionDto,
 } from './dto/action-intervention.dto';
+import { CreateConsommationInterventionDto } from './dto/create-consommation-intervention.dto';
+import { CreateInterventionDto } from './dto/create-intervention.dto';
+import { UpdateInterventionDto } from './dto/update-intervention.dto';
+import { UpsertCompteRenduInterventionDto } from './dto/upsert-compte-rendu-intervention.dto';
+
+import { InterventionConsommationService } from './intervention-consommation.service';
+import { InterventionService } from './intervention.service';
 
 @Controller('interventions')
 export class InterventionController {
-  constructor(private readonly service: InterventionService) {}
+  constructor(
+    private readonly service: InterventionService,
+    private readonly consommationService: InterventionConsommationService,
+  ) {}
+
+  /* =========================
+     DASHBOARDS
+  ========================= */
 
   @Get('dashboard/responsable')
   dashboardResponsable() {
     return this.service.dashboardResponsable();
-  }
-
-    @Get(':id/consommations')
-  getConsommations(@Param('id', ParseIntPipe) idIntervention: number) {
-    return this.service.getConsommations(idIntervention);
-  }
-
-  @Post(':id/consommations')
-  createConsommation(
-    @Param('id', ParseIntPipe) idIntervention: number,
-    @Body() dto: CreateConsommationInterventionDto,
-  ) {
-    return this.service.createConsommation(idIntervention, dto);
-  }
-
-  @Delete(':id/consommations/:idConsommation')
-  deleteConsommation(
-    @Param('id', ParseIntPipe) idIntervention: number,
-    @Param('idConsommation', ParseIntPipe) idConsommation: number,
-  ) {
-    return this.service.deleteConsommation(idIntervention, idConsommation);
   }
 
   @Get('dashboard/equipe/:idEquipe')
@@ -72,6 +61,10 @@ export class InterventionController {
     return this.service.dashboardChefEquipe(idEquipe);
   }
 
+  /* =========================
+     FILTRES
+  ========================= */
+
   @Get('type/:typeMaintenance')
   findByType(@Param('typeMaintenance') typeMaintenance: string) {
     return this.service.findByType(typeMaintenance);
@@ -81,6 +74,40 @@ export class InterventionController {
   findByEtat(@Param('etat') etat: string) {
     return this.service.findByEtat(etat);
   }
+
+  /* =========================
+     CONSOMMATIONS ARTICLES
+  ========================= */
+
+  @Get(':id/consommations')
+  getConsommations(@Param('id', ParseIntPipe) idIntervention: number) {
+    return this.consommationService.getConsommations(idIntervention);
+  }
+
+  @Post(':id/consommations')
+  createConsommation(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Body() dto: CreateConsommationInterventionDto,
+  ) {
+    return this.consommationService.createConsommation(idIntervention, dto);
+  }
+
+  @Patch(':id/consommations/:idConsommation/annuler')
+  annulerConsommation(
+    @Param('id', ParseIntPipe) idIntervention: number,
+    @Param('idConsommation', ParseIntPipe) idConsommation: number,
+    @Body() dto: AnnulerConsommationInterventionDto,
+  ) {
+    return this.consommationService.annulerConsommation(
+      idIntervention,
+      idConsommation,
+      dto,
+    );
+  }
+
+  /* =========================
+     LISTE / CRUD
+  ========================= */
 
   @Get()
   findAll(
@@ -96,19 +123,17 @@ export class InterventionController {
       idEquipe: idEquipe ? Number(idEquipe) : undefined,
     });
   }
-    @Get(':id/occupations')
+
+  /* =========================
+     OCCUPATIONS
+  ========================= */
+
+  @Get(':id/occupations')
   getOccupations(@Param('id', ParseIntPipe) idIntervention: number) {
     return this.service.getOccupations(idIntervention);
   }
 
-  @Post(':id/occupations')
-  createOccupation(
-    @Param('id', ParseIntPipe) idIntervention: number,
-    @Body() dto: CreateOccupationInterventionDto,
-  ) {
-    return this.service.createOccupation(idIntervention, dto);
-  }
-
+  
   @Delete(':id/occupations/:idOccupation')
   deleteOccupation(
     @Param('id', ParseIntPipe) idIntervention: number,
@@ -116,6 +141,10 @@ export class InterventionController {
   ) {
     return this.service.deleteOccupation(idIntervention, idOccupation);
   }
+
+  /* =========================
+     COMPTE RENDU
+  ========================= */
 
   @Get(':id/compte-rendu')
   getCompteRendu(@Param('id', ParseIntPipe) idIntervention: number) {
@@ -137,6 +166,11 @@ export class InterventionController {
   ) {
     return this.service.upsertCompteRendu(idIntervention, dto);
   }
+
+  /* =========================
+     CRUD INTERVENTION
+  ========================= */
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) idIntervention: number) {
     return this.service.findOne(idIntervention);
@@ -160,6 +194,10 @@ export class InterventionController {
     return this.service.delete(idIntervention);
   }
 
+  /* =========================
+     AFFECTATIONS
+  ========================= */
+
   @Patch(':id/affecter-equipe')
   affecterEquipe(
     @Param('id', ParseIntPipe) idIntervention: number,
@@ -180,6 +218,10 @@ export class InterventionController {
   retirerAffectation(@Param('id', ParseIntPipe) idAffectation: number) {
     return this.service.retirerAffectation(idAffectation);
   }
+
+  /* =========================
+     WORKFLOW INTERVENTION
+  ========================= */
 
   @Post(':id/demander-validation')
   demanderValidation(
@@ -253,8 +295,6 @@ export class InterventionController {
     return this.service.archiver(idIntervention, dto);
   }
 
-  
-
   @Post(':id/reporter')
   reporter(
     @Param('id', ParseIntPipe) idIntervention: number,
@@ -263,7 +303,10 @@ export class InterventionController {
     return this.service.reporter(idIntervention, dto);
   }
 
-  // Compatibilité avec ton ancien frontend
+  /* =========================
+     COMPATIBILITÉ ANCIEN FRONTEND
+  ========================= */
+
   @Patch(':id/realiser')
   realiser(
     @Param('id', ParseIntPipe) idIntervention: number,

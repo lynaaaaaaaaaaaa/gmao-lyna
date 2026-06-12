@@ -1,40 +1,32 @@
+import { Type } from 'class-transformer';
 import {
-  IsDateString,
   IsInt,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
-  MaxLength,
   Min,
 } from 'class-validator';
 
 export class CreateConsommationInterventionDto {
+  @Type(() => Number)
   @IsInt()
-  idArticle!: number;
+  idArticle: number;
 
+  @Type(() => Number)
   @IsInt()
-  idMagasin!: number;
+  idMagasin: number;
 
-  @IsOptional()
-  @IsInt()
-  idEmplacement?: number;
-
-  @IsOptional()
-  @IsInt()
-  idMateriel?: number;
-
-  @IsInt()
-  @Min(1)
-  quantite!: number;
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  quantite: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   prixUnitaire?: number;
-
-  @IsOptional()
-  @IsDateString()
-  dateSortie?: string;
 
   @IsOptional()
   @IsString()
@@ -42,6 +34,5 @@ export class CreateConsommationInterventionDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(100)
   createdBy?: string;
 }

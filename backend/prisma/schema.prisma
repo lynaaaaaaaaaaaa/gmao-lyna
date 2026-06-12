@@ -87,7 +87,7 @@ model article {
   lignesInventairePrepare    LigneInventairePrepare[]
   reservationsStock          reservation_stock[]
   lignesDemandesTransfert    ligne_demande_transfert_stock[]
-  lignes_reapprovisionnement ligne_reapprovisionnement[] @relation("ArticleLignesReapprovisionnement")
+  lignes_reapprovisionnement ligne_reapprovisionnement[]     @relation("ArticleLignesReapprovisionnement")
   fournituresIntervention    fourniture_intervention[]
 
   @@index([idFamille])
@@ -129,9 +129,13 @@ enum NiveauMaintenance {
 model consommation {
   idConsommation Int @id @default(autoincrement())
 
-  quantite     Decimal  @db.Decimal(10, 2)
-  prixUnitaire Decimal? @db.Decimal(10, 2)
-  coutTotal    Decimal? @db.Decimal(10, 2)
+  quantite          Decimal  @db.Decimal(10, 2)
+  prixUnitaire      Decimal? @db.Decimal(10, 2)
+  coutTotal         Decimal? @db.Decimal(10, 2)
+  quantiteRetournee Decimal  @default(0.00) @db.Decimal(10, 2)
+
+  statut      String  @default("ACTIVE") @db.VarChar(30)
+  commentaire String? @db.Text
 
   idArticle          Int
   idIntervention     Int
@@ -141,6 +145,10 @@ model consommation {
   createdBy String?  @db.VarChar(100)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  cancelledBy     String?   @db.VarChar(100)
+  cancelledAt     DateTime?
+  motifAnnulation String?   @db.Text
 
   article      article      @relation(fields: [idArticle], references: [idArticle], onDelete: Restrict)
   intervention intervention @relation(fields: [idIntervention], references: [idIntervention], onDelete: Restrict)
@@ -152,7 +160,9 @@ model consommation {
   @@index([idIntervention])
   @@index([idMagasin])
   @@index([idSortieStockLigne])
+  @@index([statut])
 }
+
 model unite_article {
   idUniteArticle Int       @id @default(autoincrement())
   code           String    @unique @db.VarChar(20)
@@ -589,7 +599,7 @@ model materiel {
   mouvementsStock                    mouvement_stock[]
   lignesInventairePrepare            LigneInventairePrepare[]
   lignesSortieStock                  sortie_stock_ligne[]
-  gamme_operation                    gamme_operation[] @relation("GammeOperationMateriel")
+  gamme_operation                    gamme_operation[]                    @relation("GammeOperationMateriel")
   historique_declenchement_preventif historique_declenchement_preventif[]
   plan_preventif                     plan_preventif[]
   plan_preventif_declencheur         plan_preventif_declencheur[]
@@ -605,6 +615,7 @@ model materiel {
   @@index([idMaterielParent])
   @@index([idLigneEntreeStock])
 }
+
 model magasin {
   idMagasin                    Int                           @id @default(autoincrement())
   code                         String                        @unique @db.VarChar(50)
@@ -623,7 +634,7 @@ model magasin {
   reservationsStock            reservation_stock[]
   lignesSortieStock            sortie_stock_ligne[]
   stocks                       stock_article_magasin[]
-  consommations consommation[]
+  consommations                consommation[]
 }
 
 model stock_article_magasin {
@@ -719,7 +730,7 @@ model modele {
   marque          marque?          @relation(fields: [idMarque], references: [idMarque], onDelete: SetNull, onUpdate: Restrict)
 
   gamme                           gamme[]
-  gamme_operation                 gamme_operation[] @relation("GammeOperationModele")
+  gamme_operation                 gamme_operation[]                 @relation("GammeOperationModele")
   materiel                        materiel[]
   plan_preventif_declencheur      plan_preventif_declencheur[]
   plan_preventif_predefini        plan_preventif_predefini[]
@@ -734,6 +745,7 @@ model modele {
   @@index([criticite])
   @@index([actif])
 }
+
 model operation_intervention {
   idOperation            Int                       @id @default(autoincrement())
   ordre                  Int?
@@ -940,7 +952,8 @@ model sortie_stock_ligne {
   magasin            magasin              @relation(fields: [idMagasin], references: [idMagasin])
   materiel           materiel?            @relation(fields: [idMateriel], references: [idMateriel])
   sortieStock        sortie_stock         @relation(fields: [idSortieStock], references: [idSortieStock], onDelete: Cascade)
-  consommations consommation[]
+  consommations      consommation[]
+
   @@index([idSortieStock])
   @@index([idArticle])
   @@index([idMagasin])
